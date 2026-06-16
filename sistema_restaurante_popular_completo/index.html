@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIG - Restaurante Popular | Alagoas Sem Fome</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- LOGIN PAGE -->
+<div id="login-page" style="display:flex;width:100%;min-height:100vh;background:linear-gradient(135deg,#0C447C 0%,#042C53 100%);align-items:center;justify-content:center">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13h18M3 6h18M3 20h18"/><circle cx="12" cy="4" r="1.5" fill="currentColor"/></svg>
+      </div>
+      <div class="login-title">Restaurante Popular</div>
+      <div class="login-sub">Sistema de Informação Gerencial · Alagoas Sem Fome</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Usuário</label>
+      <input class="form-input" id="inp-login" type="text" placeholder="Digite seu usuário" value="admin">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Senha</label>
+      <input class="form-input" id="inp-senha" type="password" placeholder="Digite sua senha" value="1234">
+    </div>
+    <button class="btn-primary" onclick="doLogin()">Entrar no Sistema</button>
+    <div class="profiles-hint">
+      <p>Perfis disponíveis neste protótipo:</p>
+      <div class="profile-row">👤 admin / 1234 — Administrador</div>
+      <div class="profile-row">👤 gestor / 1234 — Gestor</div>
+      <div class="profile-row">👤 estoque / 1234 — Responsável de Estoque</div>
+      <div class="profile-row">👤 doacoes / 1234 — Responsável de Doações</div>
+      <div class="profile-row">👤 producao / 1234 — Funcionário de Produção</div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none;width:100%">
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="logo-area">
+    <div class="logo-title">Restaurante Popular</div>
+    <div class="logo-sub">Alagoas Sem Fome</div>
+  </div>
+  <nav>
+    <div class="nav-section">Principal</div>
+    <div class="nav-item active" onclick="goPage('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </div>
+    <div class="nav-section">Operacional</div>
+    <div class="nav-item" onclick="goPage('estoque')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+      Estoque
+    </div>
+    <div class="nav-item" onclick="goPage('doacoes')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+      Doações
+    </div>
+    <div class="nav-item" onclick="goPage('compras')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+      Compras
+    </div>
+    <div class="nav-item" onclick="goPage('refeicoes')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+      Refeições
+    </div>
+    <div class="nav-section">Análise</div>
+    <div class="nav-item" onclick="goPage('relatorios')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Relatórios
+    </div>
+    <div class="nav-section" id="nav-admin-section">Administração</div>
+    <div class="nav-item" id="nav-usuarios" onclick="goPage('usuarios')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      Usuários
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-chip">
+      <div class="avatar" id="user-avatar">AD</div>
+      <div>
+        <div class="user-info" id="user-name">Administrador</div>
+        <div class="user-role" id="user-role">administrador</div>
+      </div>
+    </div>
+    <button class="btn-logout" onclick="doLogout()">↩ Sair do sistema</button>
+  </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<div id="main">
+  <div class="topbar">
+    <div class="topbar-title" id="topbar-title">Dashboard</div>
+    <div class="topbar-right">
+      <span class="badge-alert" id="topbar-alert">⚠ 3 alertas de estoque</span>
+      <span style="font-size:12px;color:var(--gray-400)" id="topbar-date"></span>
+    </div>
+  </div>
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div>
+          <h1>Dashboard Gerencial</h1>
+          <p>Visão geral das operações do Restaurante Popular</p>
+        </div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg></div>
+          <div class="stat-value">128</div>
+          <div class="stat-label">Itens em estoque</div>
+          <div class="stat-note warn">⚠ 3 itens vencendo</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></div>
+          <div class="stat-value">320,5 kg</div>
+          <div class="stat-label">Doações recebidas (mês)</div>
+          <div class="stat-note ok">↑ 15% vs mês anterior</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div>
+          <div class="stat-value">7.850</div>
+          <div class="stat-label">Refeições produzidas (mês)</div>
+          <div class="stat-note ok">Dentro do planejado</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/></svg></div>
+          <div class="stat-value">7.620</div>
+          <div class="stat-label">Refeições servidas (mês)</div>
+          <div class="stat-note ok">97,1% das produzidas</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+        <div class="section-card">
+          <div class="section-header"><div class="section-title">Refeições servidas — últimos 7 dias</div></div>
+          <div class="section-body">
+            <div class="bar-chart" id="bar-refeicoes"></div>
+          </div>
+        </div>
+        <div class="section-card">
+          <div class="section-header"><div class="section-title">Doações recebidas — últimos 6 meses (kg)</div></div>
+          <div class="section-body">
+            <div class="bar-chart" id="bar-doacoes"></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="section-card">
+          <div class="section-header"><div class="section-title">Alertas do sistema</div></div>
+          <div class="section-body">
+            <div class="alert warn"><span>⚠</span><div><strong>3 alimentos</strong> com validade próxima do vencimento (menos de 7 dias).</div></div>
+            <div class="alert warn"><span>⚠</span><div>Estoque de <strong>Arroz</strong> abaixo do nível mínimo recomendado.</div></div>
+            <div class="alert info"><span>ℹ</span><div>Doações do mês <strong>15% acima</strong> do mês anterior.</div></div>
+          </div>
+        </div>
+        <div class="section-card">
+          <div class="section-header"><div class="section-title">Atividades recentes</div></div>
+          <div class="section-body">
+            <div style="font-size:13px">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-50)"><span style="width:32px;height:32px;border-radius:50%;background:var(--green-50);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px">🤝</span><div><div style="font-weight:500">Nova doação — Supermercado Bom Preço</div><div style="font-size:11px;color:var(--gray-400)">18/05/2026 10:30 · 45 kg de alimentos</div></div></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-50)"><span style="width:32px;height:32px;border-radius:50%;background:var(--blue-50);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px">🛒</span><div><div style="font-weight:500">Nova compra — Fornecedor Alimentos SA</div><div style="font-size:11px;color:var(--gray-400)">18/05/2026 09:15 · R$ 1.240,00</div></div></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 0"><span style="width:32px;height:32px;border-radius:50%;background:var(--amber-50);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px">🍽</span><div><div style="font-weight:500">Produção de refeições registrada</div><div style="font-size:11px;color:var(--gray-400)">18/05/2026 07:48 · 380 produzidas / 368 servidas</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ESTOQUE -->
+    <div class="page" id="page-estoque">
+      <div class="page-header">
+        <div><h1>Controle de Estoque</h1><p>Gerencie alimentos, entradas e saídas</p></div>
+        <button class="btn blue" onclick="openModal('modal-alimento')">+ Novo alimento</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Itens cadastrados</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">128</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Total em estoque</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">3.245 kg</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Validade próxima</div><div style="font-size:22px;font-weight:700;color:var(--amber-600);margin-top:4px">12 itens</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Itens vencidos</div><div style="font-size:22px;font-weight:700;color:var(--red-600);margin-top:4px">2 itens</div></div>
+      </div>
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">Lista de Alimentos</div>
+          <div style="display:flex;gap:8px">
+            <input class="form-input" placeholder="Buscar alimento..." style="width:200px;padding:7px 12px;font-size:13px">
+            <select class="form-select" style="width:130px"><option>Todas categorias</option><option>Grãos</option><option>Carnes</option><option>Laticínios</option><option>Óleos</option><option>Massas</option></select>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>ID</th><th>Alimento</th><th>Categoria</th><th>Qtd. Atual</th><th>Unidade</th><th>Validade</th><th>Status</th><th>Ações</th></tr></thead>
+          <tbody id="tabela-estoque"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- DOAÇÕES -->
+    <div class="page" id="page-doacoes">
+      <div class="page-header">
+        <div><h1>Registro de Doações</h1><p>Controle de doadores e alimentos recebidos</p></div>
+        <button class="btn blue" onclick="openModal('modal-doacao')">+ Nova doação</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Doadores cadastrados</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">23</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Doações este mês</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">8</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Volume recebido (mês)</div><div style="font-size:22px;font-weight:700;color:var(--green-600);margin-top:4px">320,5 kg</div></div>
+      </div>
+      <div class="section-card">
+        <div class="section-header"><div class="section-title">Histórico de Doações</div></div>
+        <table>
+          <thead><tr><th>ID</th><th>Doador</th><th>Data</th><th>Itens doados</th><th>Qtd. total</th><th>Estoque atualizado</th></tr></thead>
+          <tbody id="tabela-doacoes"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- COMPRAS -->
+    <div class="page" id="page-compras">
+      <div class="page-header">
+        <div><h1>Registro de Compras</h1><p>Fornecedores e aquisições de insumos</p></div>
+        <button class="btn blue" onclick="openModal('modal-compra')">+ Nova compra</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Fornecedores cadastrados</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">11</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Compras este mês</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">5</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Valor total (mês)</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">R$ 6.840</div></div>
+      </div>
+      <div class="section-card">
+        <div class="section-header"><div class="section-title">Histórico de Compras</div></div>
+        <table>
+          <thead><tr><th>ID</th><th>Fornecedor</th><th>Data</th><th>Itens</th><th>Valor total</th><th>Estoque</th></tr></thead>
+          <tbody id="tabela-compras"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- REFEIÇÕES -->
+    <div class="page" id="page-refeicoes">
+      <div class="page-header">
+        <div><h1>Controle de Refeições</h1><p>Registro diário de produção e serviço</p></div>
+        <button class="btn blue" onclick="openModal('modal-refeicao')">+ Registrar refeições</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Produzidas hoje</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">380</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Servidas hoje</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">368</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Produzidas no mês</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">7.850</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Servidas no mês</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">7.620</div></div>
+      </div>
+      <div class="section-card">
+        <div class="section-header"><div class="section-title">Registros de Refeições</div></div>
+        <table>
+          <thead><tr><th>ID</th><th>Data</th><th>Qtd. Produzida</th><th>Qtd. Servida</th><th>Diferença</th><th>Status</th></tr></thead>
+          <tbody id="tabela-refeicoes"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RELATÓRIOS -->
+    <div class="page" id="page-relatorios">
+      <div class="page-header">
+        <div><h1>Relatórios</h1><p>Consultas e análises por período</p></div>
+        <button class="btn green" onclick="showToast('Relatório gerado com sucesso!')">⬇ Exportar PDF</button>
+      </div>
+      <div class="section-card" style="margin-bottom:20px">
+        <div class="section-header"><div class="section-title">Filtros de pesquisa</div></div>
+        <div class="section-body">
+          <div class="form-row cols3">
+            <div><label class="form-label">Tipo de relatório</label>
+            <select class="form-select"><option>Estoque</option><option>Doações</option><option>Compras</option><option>Refeições</option><option>Geral</option></select></div>
+            <div><label class="form-label">Data início</label><input class="form-input" type="date" value="2026-05-01"></div>
+            <div><label class="form-label">Data fim</label><input class="form-input" type="date" value="2026-05-18"></div>
+          </div>
+          <button class="btn blue" onclick="showToast('Relatório gerado!')">Gerar relatório</button>
+        </div>
+      </div>
+      <div class="section-card">
+        <div class="section-header"><div class="section-title">Relatório: Refeições — Mai/2026</div></div>
+        <table>
+          <thead><tr><th>Data</th><th>Produzidas</th><th>Servidas</th><th>Não servidas</th><th>% aproveit.</th></tr></thead>
+          <tbody>
+            <tr><td>10/05/2026</td><td>390</td><td>378</td><td>12</td><td><span class="badge ok">96,9%</span></td></tr>
+            <tr><td>11/05/2026</td><td>370</td><td>365</td><td>5</td><td><span class="badge ok">98,6%</span></td></tr>
+            <tr><td>12/05/2026</td><td>400</td><td>388</td><td>12</td><td><span class="badge ok">97%</span></td></tr>
+            <tr><td>13/05/2026</td><td>360</td><td>342</td><td>18</td><td><span class="badge warn">95%</span></td></tr>
+            <tr><td>14/05/2026</td><td>380</td><td>371</td><td>9</td><td><span class="badge ok">97,6%</span></td></tr>
+            <tr><td>15/05/2026</td><td>395</td><td>390</td><td>5</td><td><span class="badge ok">98,7%</span></td></tr>
+            <tr><td>16/05/2026</td><td>350</td><td>340</td><td>10</td><td><span class="badge ok">97,1%</span></td></tr>
+            <tr><td>17/05/2026</td><td>380</td><td>368</td><td>12</td><td><span class="badge ok">96,8%</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- USUÁRIOS -->
+    <div class="page" id="page-usuarios">
+      <div class="page-header">
+        <div><h1>Gerenciar Usuários</h1><p>Apenas administradores têm acesso a esta tela</p></div>
+        <button class="btn blue" onclick="openModal('modal-usuario')">+ Novo usuário</button>
+      </div>
+      <div class="section-card">
+        <div class="section-header"><div class="section-title">Usuários cadastrados</div></div>
+        <table>
+          <thead><tr><th>ID</th><th>Nome</th><th>Login</th><th>Perfil</th><th>Status</th><th>Ações</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Ana Gestora</td><td>admin</td><td><span class="badge blue">Administrador</span></td><td><span class="badge ok">Ativo</span></td><td><button class="btn outline btn-sm">Editar</button></td></tr>
+            <tr><td>2</td><td>Bruno Gestor</td><td>gestor</td><td><span class="badge blue">Gestor</span></td><td><span class="badge ok">Ativo</span></td><td><button class="btn outline btn-sm">Editar</button></td></tr>
+            <tr><td>3</td><td>Carlos Estoque</td><td>estoque</td><td><span class="badge blue">Estoque</span></td><td><span class="badge ok">Ativo</span></td><td><button class="btn outline btn-sm">Editar</button></td></tr>
+            <tr><td>4</td><td>Diana Doações</td><td>doacoes</td><td><span class="badge blue">Doações</span></td><td><span class="badge ok">Ativo</span></td><td><button class="btn outline btn-sm">Editar</button></td></tr>
+            <tr><td>5</td><td>Eduardo Produção</td><td>producao</td><td><span class="badge blue">Produção</span></td><td><span class="badge ok">Ativo</span></td><td><button class="btn outline btn-sm">Editar</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /app -->
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-alimento">
+  <div class="modal">
+    <h2>+ Cadastrar Alimento</h2>
+    <div class="form-row cols2">
+      <div><label class="form-label">Nome do alimento</label><input class="form-input" placeholder="Ex: Arroz tipo 1"></div>
+      <div><label class="form-label">Categoria</label><select class="form-select"><option>Grãos</option><option>Carnes</option><option>Laticínios</option><option>Óleos</option><option>Massas</option><option>Legumes</option><option>Temperos</option></select></div>
+    </div>
+    <div class="form-row cols3">
+      <div><label class="form-label">Unidade</label><select class="form-select"><option>kg</option><option>L</option><option>un</option><option>cx</option></select></div>
+      <div><label class="form-label">Quantidade inicial</label><input class="form-input" type="number" placeholder="0" value="50"></div>
+      <div><label class="form-label">Validade</label><input class="form-input" type="date"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn outline" onclick="closeModal('modal-alimento')">Cancelar</button>
+      <button class="btn blue" onclick="saveAlimento()">Salvar alimento</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-doacao">
+  <div class="modal">
+    <h2>+ Registrar Doação</h2>
+    <div class="form-row cols2">
+      <div><label class="form-label">Doador</label><select class="form-select" id="sel-doador"><option>Supermercado Bom Preço</option><option>Igreja Evangélica Central</option><option>Conab / Governo</option><option>+ Novo doador</option></select></div>
+      <div><label class="form-label">Data da doação</label><input class="form-input" type="date" value="2026-05-18"></div>
+    </div>
+    <div class="form-row cols3">
+      <div><label class="form-label">Alimento doado</label><select class="form-select"><option>Arroz</option><option>Feijão Carioca</option><option>Óleo de Soja</option><option>Macarrão</option></select></div>
+      <div><label class="form-label">Quantidade</label><input class="form-input" type="number" placeholder="0" value="45"></div>
+      <div><label class="form-label">Unidade</label><select class="form-select"><option>kg</option><option>L</option><option>un</option></select></div>
+    </div>
+    <div class="alert info"><span>ℹ</span> O estoque será atualizado automaticamente ao salvar.</div>
+    <div class="modal-footer">
+      <button class="btn outline" onclick="closeModal('modal-doacao')">Cancelar</button>
+      <button class="btn blue" onclick="saveDoacao()">Registrar doação</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-compra">
+  <div class="modal">
+    <h2>+ Registrar Compra</h2>
+    <div class="form-row cols2">
+      <div><label class="form-label">Fornecedor</label><select class="form-select"><option>Alimentos SA</option><option>Distribuidora Norte</option><option>Cerealista Alagoana</option></select></div>
+      <div><label class="form-label">Data da compra</label><input class="form-input" type="date" value="2026-05-18"></div>
+    </div>
+    <div class="form-row cols3">
+      <div><label class="form-label">Produto</label><select class="form-select"><option>Arroz</option><option>Feijão</option><option>Óleo</option><option>Frango</option></select></div>
+      <div><label class="form-label">Quantidade</label><input class="form-input" type="number" value="100"></div>
+      <div><label class="form-label">Valor unitário (R$)</label><input class="form-input" type="number" value="4.50" step="0.01"></div>
+    </div>
+    <div class="alert info"><span>ℹ</span> O estoque será atualizado automaticamente ao salvar a compra.</div>
+    <div class="modal-footer">
+      <button class="btn outline" onclick="closeModal('modal-compra')">Cancelar</button>
+      <button class="btn blue" onclick="saveCompra()">Registrar compra</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-refeicao">
+  <div class="modal">
+    <h2>+ Registrar Refeições do Dia</h2>
+    <div class="form-row cols2">
+      <div><label class="form-label">Data</label><input class="form-input" type="date" value="2026-05-18"></div>
+      <div></div>
+    </div>
+    <div class="form-row cols2">
+      <div><label class="form-label">Quantidade produzida</label><input class="form-input" type="number" id="inp-produzida" value="400" min="0"></div>
+      <div><label class="form-label">Quantidade servida</label><input class="form-input" type="number" id="inp-servida" value="385" min="0"></div>
+    </div>
+    <div class="alert warn" id="refeicao-warn" style="display:none"><span>⚠</span> A quantidade servida não pode ser maior que a produzida.</div>
+    <div class="alert info"><span>ℹ</span> Regra: quantidade servida ≤ quantidade produzida.</div>
+    <div class="modal-footer">
+      <button class="btn outline" onclick="closeModal('modal-refeicao')">Cancelar</button>
+      <button class="btn blue" onclick="saveRefeicao()">Salvar registro</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-usuario">
+  <div class="modal">
+    <h2>+ Cadastrar Usuário</h2>
+    <div class="form-row cols2">
+      <div><label class="form-label">Nome completo</label><input class="form-input" placeholder="Nome do colaborador"></div>
+      <div><label class="form-label">Login</label><input class="form-input" placeholder="login.usuario"></div>
+    </div>
+    <div class="form-row cols2">
+      <div><label class="form-label">Senha</label><input class="form-input" type="password" placeholder="Senha inicial"></div>
+      <div><label class="form-label">Perfil de acesso</label><select class="form-select"><option>administrador</option><option>gestor</option><option>estoque</option><option>doacoes</option><option>producao</option></select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn outline" onclick="closeModal('modal-usuario')">Cancelar</button>
+      <button class="btn blue" onclick="saveUsuario()">Cadastrar usuário</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

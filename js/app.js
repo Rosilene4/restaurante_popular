@@ -88,6 +88,7 @@ async function doLogin(){
   const s=document.getElementById('inp-senha').value;
   if(USERS[l]&&s==='1234'){
     currentUser={login:l,...USERS[l]};
+    localStorage.setItem('USUARIO_LOGADO', l);
     document.getElementById('login-page').style.display='none';
     document.getElementById('app').style.display='flex';
     document.getElementById('user-name').textContent=currentUser.nome;
@@ -104,24 +105,57 @@ async function doLogin(){
     await loadData();
     renderTables();
     renderCharts();
-    goPage('dashboard');
+
+    const paginaSalva =
+      localStorage.getItem('PAGINA_ATUAL') || 'dashboard';
+    goPage(paginaSalva);
   }else{
     showToast('Login ou senha inválidos!');
   }
 }
 
 function doLogout(){
+  localStorage.removeItem('USUARIO_LOGADO');
   document.getElementById('app').style.display='none';
   document.getElementById('login-page').style.display='flex';
 }
 
-function goPage(p){
-  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
-  document.getElementById('page-'+p).classList.add('active');
-  document.querySelectorAll('.nav-item').forEach(x=>{if(x.getAttribute('onclick')&&x.getAttribute('onclick').includes("'"+p+"'"))x.classList.add('active')});
-  const titles={dashboard:'Dashboard Gerencial',estoque:'Controle de Estoque',doacoes:'Doações',compras:'Compras',refeicoes:'Refeições',relatorios:'Relatórios',usuarios:'Usuários'};
-  document.getElementById('topbar-title').textContent=titles[p]||p;
+function goPage(page){
+  localStorage.setItem('PAGINA_ATUAL', page);
+
+  document.querySelectorAll('.page').forEach(x => {
+    x.classList.remove('active');
+    x.style.display = 'none';
+  });
+
+  document.querySelectorAll('.nav-item').forEach(x => {
+    x.classList.remove('active');
+  });
+
+  const pagina = document.getElementById('page-' + page);
+  if(pagina){
+    pagina.classList.add('active');
+    pagina.style.display = 'block';
+  }
+
+  document.querySelectorAll('.nav-item').forEach(x => {
+    const onclick = x.getAttribute('onclick') || '';
+    if(onclick.includes("'" + page + "'") || onclick.includes('"' + page + '"')){
+      x.classList.add('active');
+    }
+  });
+
+  const titles = {
+    dashboard: 'Dashboard Gerencial',
+    estoque: 'Controle de Estoque',
+    doacoes: 'Doações',
+    compras: 'Compras',
+    refeicoes: 'Refeições',
+    relatorios: 'Relatórios',
+    usuarios: 'Usuários'
+  };
+
+  document.getElementById('topbar-title').textContent = titles[page] || page;
 }
 
 function renderTables(){
@@ -204,20 +238,6 @@ function initUIState(){
 function openModal(id){document.getElementById(id).classList.add('open')}
 function closeModal(id){document.getElementById(id).classList.remove('open')}
 
-function saveAlimento(){closeModal('modal-alimento');showToast('Alimento cadastrado com sucesso!');}
-function saveDoacao(){closeModal('modal-doacao');showToast('Doação registrada! Estoque atualizado automaticamente.');}
-function saveCompra(){closeModal('modal-compra');showToast('Compra registrada! Estoque atualizado automaticamente.');}
-function saveUsuario(){closeModal('modal-usuario');showToast('Usuário cadastrado com sucesso!');}
-function saveRefeicao(){
-  const p=parseInt(document.getElementById('inp-produzida').value)||0;
-  const s=parseInt(document.getElementById('inp-servida').value)||0;
-  const w=document.getElementById('refeicao-warn');
-  if(s>p){w.style.display='flex';return;}
-  w.style.display='none';
-  closeModal('modal-refeicao');
-  showToast('Registro de refeições salvo com sucesso!');
-}
-
 // Enhanced save handlers that persist to localStorage and update UI
 function saveAlimento(){
   const m=document.getElementById('modal-alimento');
@@ -233,37 +253,112 @@ function saveAlimento(){
 }
 
 function saveDoacao(){
-  const m=document.getElementById('modal-doacao');
-  const doador = m.querySelector('#sel-doador')?.value||'Outro';
-  const data = m.querySelector('input[type=date]')?.value||'';
-  const alimento = m.querySelector('select.form-select')?.value||'';
-  const qty = m.querySelector('input[type=number]')?.value||'';
-  const id = DOACOES_DATA.length?Math.max(...DOACOES_DATA.map(x=>x.id))+1:1;
-  DOACOES_DATA.push({id,doador,data,itens:alimento,qty:qty+' kg'});
-  // quick stock update: increment matching alimento if present
-  const item = ESTOQUE_DATA.find(i=>i.nome.toLowerCase().includes(alimento.toLowerCase()));
-  if(item) item.qty = (parseFloat(item.qty)||0) + (parseFloat(qty)||0);
-  saveData(); renderTables(); closeModal('modal-doacao'); showToast('Doação registrada e estoque atualizado.');
+  const m = document.getElementById('modal-doacao');
+
+  const selects = m.querySelectorAll('select.form-select');
+  const inputs = m.querySelectorAll('input');
+
+  const doador = selects[0]?.value || 'Outro';
+  const data = inputs[0]?.value || '';
+  const alimento = selects[1]?.value || 'Alimento';
+  const qty = parseFloat(inputs[1]?.value) || 0;
+  const unidade = selects[2]?.value || 'kg';
+
+  const id = DOACOES_DATA.length
+    ? Math.max(...DOACOES_DATA.map(x => x.id)) + 1
+    : 1;
+
+  DOACOES_DATA.push({
+    id: id,
+    doador: doador,
+    data: data,
+    itens: alimento,
+    qty: qty + ' ' + unidade
+  });
+
+  const item = ESTOQUE_DATA.find(i =>
+    i.nome.toLowerCase().includes(alimento.toLowerCase()) ||
+    alimento.toLowerCase().includes(i.nome.toLowerCase().split(' ')[0])
+  );
+
+  if(item){
+    item.qty = (parseFloat(item.qty) || 0) + qty;
+  }
+
+  saveData();
+  renderTables();
+  closeModal('modal-doacao');
+  showToast('Doação registrada e estoque atualizado.');
 }
 
 function saveCompra(){
-  const m=document.getElementById('modal-compra');
-  const forn = m.querySelector('select.form-select')?.value||'Fornecedor';
-  const data = m.querySelector('input[type=date]')?.value||'';
-  const prod = m.querySelector('select.form-select:nth-of-type(2)')?.value||'';
-  const qty = m.querySelector('input[type=number]')?.value||0;
-  const val = m.querySelector('input[type=number][step]')?.value||'';
-  const id = COMPRAS_DATA.length?Math.max(...COMPRAS_DATA.map(x=>x.id))+1:1;
-  COMPRAS_DATA.push({id,forn,data,itens:prod,val:'R$ '+(parseFloat(val)||0).toFixed(2)});
-  // update stock if product found
-  const item = ESTOQUE_DATA.find(i=>i.nome.toLowerCase().includes(prod.toLowerCase()));
-  if(item) item.qty = (parseFloat(item.qty)||0) + (parseFloat(qty)||0);
-  saveData(); renderTables(); closeModal('modal-compra'); showToast('Compra registrada e estoque atualizado.');
+  const m = document.getElementById('modal-compra');
+
+  const selects = m.querySelectorAll('select.form-select');
+  const inputs = m.querySelectorAll('input');
+
+  const forn = selects[0]?.value || 'Fornecedor';
+  const data = inputs[0]?.value || '';
+  const prod = selects[1]?.value || 'Produto';
+
+  const qty = parseFloat(inputs[1]?.value) || 0;
+  const valUnitario = parseFloat(inputs[2]?.value) || 0;
+
+  const valorTotal = qty * valUnitario;
+
+  const id = COMPRAS_DATA.length
+    ? Math.max(...COMPRAS_DATA.map(x => x.id)) + 1
+    : 1;
+
+  COMPRAS_DATA.push({
+    id: id,
+    forn: forn,
+    data: data,
+    itens: prod,
+    val: 'R$ ' + valorTotal.toFixed(2)
+  });
+
+  const item = ESTOQUE_DATA.find(i =>
+    i.nome.toLowerCase().includes(prod.toLowerCase()) ||
+    prod.toLowerCase().includes(i.nome.toLowerCase().split(' ')[0])
+  );
+
+  if(item){
+    item.qty = (parseFloat(item.qty) || 0) + qty;
+  }
+
+  saveData();
+  renderTables();
+  closeModal('modal-compra');
+  showToast('Compra registrada e estoque atualizado.');
 }
 
 function saveUsuario(){
   // For prototype, just show toast and close modal. Real apps must POST to server.
   closeModal('modal-usuario'); showToast('Usuário cadastrado (simulação).');
+}
+function baixarEstoquePorRefeicao(qtdRefeicoes){
+  const consumoPorRefeicao = {
+    'Arroz Tipo 1': 0.08,
+    'Feijão Carioca': 0.06,
+    'Óleo de Soja': 0.01,
+    'Carne Bovina': 0.10,
+    'Macarrão': 0.03,
+    'Sal': 0.002
+  };
+
+  ESTOQUE_DATA.forEach(item => {
+    if(consumoPorRefeicao[item.nome]){
+      const consumido = qtdRefeicoes * consumoPorRefeicao[item.nome];
+
+      item.qty = Math.max(
+        0,
+        Number(
+          ((parseFloat(item.qty) || 0) - consumido).toFixed(2)
+        )
+      );
+    }
+  });
 }
 
 function saveRefeicao(){
@@ -275,6 +370,7 @@ function saveRefeicao(){
   const id = REFEICOES_DATA.length?Math.max(...REFEICOES_DATA.map(x=>x.id))+1:1;
   const data = document.querySelector('#modal-refeicao input[type=date]')?.value||new Date().toLocaleDateString('pt-BR');
   REFEICOES_DATA.unshift({id,data,prod:p,serv:s});
+  baixarEstoquePorRefeicao(p);
   saveData(); renderTables(); renderCharts(); closeModal('modal-refeicao'); showToast('Registro de refeições salvo com sucesso!');
 }
 
@@ -287,4 +383,60 @@ function showToast(msg){
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('login-page').style.display!=='none')doLogin();});
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',function(e){if(e.target===this)this.classList.remove('open')}));
 // initialize UI state on load
-document.addEventListener('DOMContentLoaded',()=>{initUIState();document.addEventListener('click',e=>{const d=document.getElementById('user-menu-dropdown');if(d&&e.target!==document.getElementById('user-menu-btn')&& !document.getElementById('user-menu').contains(e.target)){d.style.display='none'}})});
+document.addEventListener('DOMContentLoaded', async () => {
+  initUIState();
+  document.getElementById('login-page').style.display = 'none';
+
+
+  const usuarioSalvo = localStorage.getItem('USUARIO_LOGADO');
+
+  if(usuarioSalvo && USERS[usuarioSalvo]){
+    currentUser = {login: usuarioSalvo, ...USERS[usuarioSalvo]};
+
+    document.getElementById('login-page').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+
+    document.getElementById('user-name').textContent = currentUser.nome;
+    document.getElementById('user-role').textContent = currentUser.perfil;
+    document.getElementById('user-avatar').textContent = currentUser.initials;
+
+    if(currentUser.perfil !== 'administrador'){
+      document.getElementById('nav-admin-section').style.display = 'none';
+      document.getElementById('nav-usuarios').style.display = 'none';
+    }else{
+      document.getElementById('nav-admin-section').style.display = '';
+      document.getElementById('nav-usuarios').style.display = '';
+    }
+
+    document.getElementById('topbar-date').textContent =
+      new Date().toLocaleDateString('pt-BR', {
+        weekday:'short',
+        day:'2-digit',
+        month:'2-digit',
+        year:'numeric'
+      });
+
+    await loadData();
+    renderTables();
+    renderCharts();
+    const paginaSalva =
+      localStorage.getItem('PAGINA_ATUAL') || 'dashboard';
+
+    goPage(paginaSalva);
+  }
+  else{
+    document.getElementById('login-page').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+
+  document.addEventListener('click', e => {
+    const d = document.getElementById('user-menu-dropdown');
+    const btn = document.getElementById('user-menu-btn');
+    const menu = document.getElementById('user-menu');
+
+    if(d && btn && menu && e.target !== btn && !menu.contains(e.target)){
+      d.style.display = 'none';
+    }
+  });
+  document.body.classList.remove('carregando');
+});

@@ -167,3 +167,17 @@ tr:hover td{background:var(--blue-50)}
 /* Chart canvas sizing */
 .section-body canvas{width:100% !important;height:120px !important}
 /* Dark theme removed */
+
+#login-page{
+  display:flex;
+  width:100%;
+  min-height:100vh;
+  background:linear-gradient(135deg,#0C447C 0%,#042C53 100%);
+  align-items:center;
+  justify-content:center;
+}
+
+body.carregando #login-page,
+body.carregando #app{
+  display:none !important;
+}

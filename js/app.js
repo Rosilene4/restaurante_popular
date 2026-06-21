@@ -82,13 +82,38 @@ async function saveData(){
     }catch(err){console.warn('Erro ao salvar dados no localStorage',err)}
   }
 }
+function aplicarPermissoes(){
+  const permissoes = {
+    administrador: ['dashboard','estoque','doacoes','compras','refeicoes','relatorios','usuarios'],
+    gestor: ['dashboard','estoque','doacoes','compras','refeicoes','relatorios'],
+    estoque: ['estoque'],
+    doacoes: ['doacoes'],
+    producao: ['refeicoes']
+  };
 
+  const telasPermitidas = permissoes[currentUser.perfil] || ['dashboard'];
+
+  document.querySelectorAll('.nav-item').forEach(item => {
+    const onclick = item.getAttribute('onclick') || '';
+    const pagina = onclick.match(/goPage\('(.+?)'\)/)?.[1];
+
+    if(pagina && !telasPermitidas.includes(pagina)){
+      item.style.display = 'none';
+    }else{
+      item.style.display = 'flex';
+    }
+  });
+
+  document.getElementById('nav-admin-section').style.display =
+    currentUser.perfil === 'administrador' ? '' : 'none';
+
+  return telasPermitidas[0];
+}
 async function doLogin(){
   const l=document.getElementById('inp-login').value.trim();
   const s=document.getElementById('inp-senha').value;
   if(USERS[l]&&s==='1234'){
     currentUser={login:l,...USERS[l]};
-    localStorage.setItem('USUARIO_LOGADO', l);
     document.getElementById('login-page').style.display='none';
     document.getElementById('app').style.display='flex';
     document.getElementById('user-name').textContent=currentUser.nome;
@@ -106,9 +131,8 @@ async function doLogin(){
     renderTables();
     renderCharts();
 
-    const paginaSalva =
-      localStorage.getItem('PAGINA_ATUAL') || 'dashboard';
-    goPage(paginaSalva);
+    const primeiraTela = aplicarPermissoes();
+    goPage(primeiraTela);
   }else{
     showToast('Login ou senha inválidos!');
   }
@@ -385,49 +409,13 @@ document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click
 // initialize UI state on load
 document.addEventListener('DOMContentLoaded', async () => {
   initUIState();
-  document.getElementById('login-page').style.display = 'none';
 
+  localStorage.removeItem('USUARIO_LOGADO');
 
-  const usuarioSalvo = localStorage.getItem('USUARIO_LOGADO');
+  document.getElementById('login-page').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
 
-  if(usuarioSalvo && USERS[usuarioSalvo]){
-    currentUser = {login: usuarioSalvo, ...USERS[usuarioSalvo]};
-
-    document.getElementById('login-page').style.display = 'none';
-    document.getElementById('app').style.display = 'flex';
-
-    document.getElementById('user-name').textContent = currentUser.nome;
-    document.getElementById('user-role').textContent = currentUser.perfil;
-    document.getElementById('user-avatar').textContent = currentUser.initials;
-
-    if(currentUser.perfil !== 'administrador'){
-      document.getElementById('nav-admin-section').style.display = 'none';
-      document.getElementById('nav-usuarios').style.display = 'none';
-    }else{
-      document.getElementById('nav-admin-section').style.display = '';
-      document.getElementById('nav-usuarios').style.display = '';
-    }
-
-    document.getElementById('topbar-date').textContent =
-      new Date().toLocaleDateString('pt-BR', {
-        weekday:'short',
-        day:'2-digit',
-        month:'2-digit',
-        year:'numeric'
-      });
-
-    await loadData();
-    renderTables();
-    renderCharts();
-    const paginaSalva =
-      localStorage.getItem('PAGINA_ATUAL') || 'dashboard';
-
-    goPage(paginaSalva);
-  }
-  else{
-    document.getElementById('login-page').style.display = 'flex';
-    document.getElementById('app').style.display = 'none';
-  }
+  await loadData();
 
   document.addEventListener('click', e => {
     const d = document.getElementById('user-menu-dropdown');
@@ -438,5 +426,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       d.style.display = 'none';
     }
   });
+
   document.body.classList.remove('carregando');
 });

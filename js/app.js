@@ -114,6 +114,7 @@ async function doLogin(){
   const s=document.getElementById('inp-senha').value;
   if(USERS[l]&&s==='1234'){
     currentUser={login:l,...USERS[l]};
+    localStorage.setItem('USUARIO_LOGADO', l);
     document.getElementById('login-page').style.display='none';
     document.getElementById('app').style.display='flex';
     document.getElementById('user-name').textContent=currentUser.nome;
@@ -410,12 +411,35 @@ document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click
 document.addEventListener('DOMContentLoaded', async () => {
   initUIState();
 
-  localStorage.removeItem('USUARIO_LOGADO');
-
-  document.getElementById('login-page').style.display = 'flex';
-  document.getElementById('app').style.display = 'none';
-
   await loadData();
+
+  const usuarioSalvo = localStorage.getItem('USUARIO_LOGADO');
+
+  if(usuarioSalvo && USERS[usuarioSalvo]){
+    currentUser = {
+      login: usuarioSalvo,
+      ...USERS[usuarioSalvo]
+    };
+
+    document.getElementById('login-page').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+
+    document.getElementById('user-name').textContent = currentUser.nome;
+    document.getElementById('user-role').textContent = currentUser.perfil;
+    document.getElementById('user-avatar').textContent = currentUser.initials;
+
+    aplicarPermissoes();
+
+    const paginaSalva =
+      localStorage.getItem('PAGINA_ATUAL') || 'dashboard';
+
+    renderTables();
+    renderCharts();
+    goPage(paginaSalva);
+  }else{
+    document.getElementById('login-page').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
 
   document.addEventListener('click', e => {
     const d = document.getElementById('user-menu-dropdown');

@@ -112,6 +112,145 @@ let currentUser=null;
 let chartRefeicoes=null;
 let chartDoacoes=null;
 
+const PREMISSAS_FINANCEIRAS = {
+  pratosPorDia: 267,
+  precoPrato: 1,
+  custoFixoMensal: 38000,
+  consumoPorPrato: {
+    'Arroz Tipo 1': 0.08,
+    'Feijão Carioca': 0.06,
+    'Óleo de Soja': 0.01,
+    'Carne Bovina': 0.10,
+    'Macarrão': 0.03,
+    'Sal': 0.002
+  },
+  precoUnitario: {
+    'Arroz Tipo 1': 4.50,
+    'Feijão Carioca': 6.00,
+    'Óleo de Soja': 6.50,
+    'Carne Bovina': 18.00,
+    'Macarrão': 5.50,
+    'Sal': 2.50
+  }
+};
+
+function preencherFormularioPremissas(){
+  const pratosInput = document.getElementById('sim-pratos-dia');
+  const precoInput = document.getElementById('sim-preco-prato');
+  const fixoInput = document.getElementById('sim-custo-fixo');
+  if(pratosInput) pratosInput.value = PREMISSAS_FINANCEIRAS.pratosPorDia;
+  if(precoInput) precoInput.value = Number(PREMISSAS_FINANCEIRAS.precoPrato).toFixed(2);
+  if(fixoInput) fixoInput.value = Math.round(PREMISSAS_FINANCEIRAS.custoFixoMensal);
+}
+
+function carregarPremissasFinanceiras(){
+  try{
+    const raw = localStorage.getItem('PREMISSAS_FINANCEIRAS');
+    if(!raw) return;
+    const cfg = JSON.parse(raw);
+    if(cfg && typeof cfg === 'object'){
+      PREMISSAS_FINANCEIRAS.pratosPorDia = Math.max(1, Number(cfg.pratosPorDia) || PREMISSAS_FINANCEIRAS.pratosPorDia);
+      PREMISSAS_FINANCEIRAS.precoPrato = Math.max(0, Number(cfg.precoPrato) || PREMISSAS_FINANCEIRAS.precoPrato);
+      PREMISSAS_FINANCEIRAS.custoFixoMensal = Math.max(0, Number(cfg.custoFixoMensal) || PREMISSAS_FINANCEIRAS.custoFixoMensal);
+    }
+  }catch(e){
+    console.warn('Falha ao carregar premissas financeiras', e);
+  }
+}
+
+function salvarPremissasFinanceiras(){
+  const pratosInput = document.getElementById('sim-pratos-dia');
+  const precoInput = document.getElementById('sim-preco-prato');
+  const fixoInput = document.getElementById('sim-custo-fixo');
+
+  const pratosPorDia = Math.max(1, parseInt(pratosInput?.value, 10) || PREMISSAS_FINANCEIRAS.pratosPorDia);
+  const precoPrato = Math.max(0, parseFloat(String(precoInput?.value || '').replace(',', '.')) || PREMISSAS_FINANCEIRAS.precoPrato);
+  const custoFixoMensal = Math.max(0, parseFloat(String(fixoInput?.value || '').replace(',', '.')) || PREMISSAS_FINANCEIRAS.custoFixoMensal);
+
+  PREMISSAS_FINANCEIRAS.pratosPorDia = pratosPorDia;
+  PREMISSAS_FINANCEIRAS.precoPrato = precoPrato;
+  PREMISSAS_FINANCEIRAS.custoFixoMensal = custoFixoMensal;
+
+  try{
+    localStorage.setItem('PREMISSAS_FINANCEIRAS', JSON.stringify({
+      pratosPorDia,
+      precoPrato,
+      custoFixoMensal
+    }));
+  }catch(e){
+    console.warn('Falha ao salvar premissas financeiras', e);
+  }
+
+  preencherFormularioPremissas();
+  renderTables();
+  showToast('Premissas financeiras atualizadas.');
+}
+
+function carregarCenarioSimulado8000(){
+  REFEICOES_DATA.splice(0, REFEICOES_DATA.length,
+    {id:1,data:'02/05/2026',prod:374,serv:360},
+    {id:2,data:'03/05/2026',prod:369,serv:355},
+    {id:3,data:'04/05/2026',prod:385,serv:372},
+    {id:4,data:'05/05/2026',prod:381,serv:368},
+    {id:5,data:'06/05/2026',prod:375,serv:362},
+    {id:6,data:'09/05/2026',prod:384,serv:370},
+    {id:7,data:'10/05/2026',prod:371,serv:358},
+    {id:8,data:'11/05/2026',prod:379,serv:365},
+    {id:9,data:'12/05/2026',prod:386,serv:371},
+    {id:10,data:'13/05/2026',prod:373,serv:359},
+    {id:11,data:'16/05/2026',prod:380,serv:366},
+    {id:12,data:'17/05/2026',prod:389,serv:374},
+    {id:13,data:'18/05/2026',prod:373,serv:360},
+    {id:14,data:'19/05/2026',prod:370,serv:357},
+    {id:15,data:'20/05/2026',prod:382,serv:369},
+    {id:16,data:'23/05/2026',prod:376,serv:363},
+    {id:17,data:'24/05/2026',prod:390,serv:376},
+    {id:18,data:'25/05/2026',prod:374,serv:361},
+    {id:19,data:'26/05/2026',prod:367,serv:354},
+    {id:20,data:'27/05/2026',prod:381,serv:367},
+    {id:21,data:'30/05/2026',prod:387,serv:373},
+    {id:22,data:'31/05/2026',prod:379,serv:365}
+  );
+
+  DOACOES_DATA.splice(0, DOACOES_DATA.length,
+    {id:1,doador:'Conab / Governo',data:'04/05/2026',itens:'Arroz Tipo 1',qty:'180 kg'},
+    {id:2,doador:'Supermercado Bom Preço',data:'08/05/2026',itens:'Feijão Carioca',qty:'120 kg'},
+    {id:3,doador:'Igreja Evangélica Central',data:'11/05/2026',itens:'Macarrão',qty:'80 kg'},
+    {id:4,doador:'Associação Moradores',data:'14/05/2026',itens:'Óleo de Soja',qty:'65 L'},
+    {id:5,doador:'Conab / Governo',data:'18/05/2026',itens:'Arroz Tipo 1',qty:'160 kg'},
+    {id:6,doador:'Supermercado Bom Preço',data:'22/05/2026',itens:'Feijão Carioca',qty:'110 kg'},
+    {id:7,doador:'Paróquia São José',data:'25/05/2026',itens:'Sal',qty:'35 kg'},
+    {id:8,doador:'Coletivo Solidário',data:'29/05/2026',itens:'Carne Bovina',qty:'90 kg'}
+  );
+
+  COMPRAS_DATA.splice(0, COMPRAS_DATA.length,
+    {id:1,forn:'Alimentos SA',data:'03/05/2026',itens:'Arroz Tipo 1',val:'R$ 3.240,00'},
+    {id:2,forn:'Distribuidora Norte',data:'05/05/2026',itens:'Feijão Carioca',val:'R$ 2.160,00'},
+    {id:3,forn:'Cerealista Alagoana',data:'09/05/2026',itens:'Macarrão',val:'R$ 1.870,00'},
+    {id:4,forn:'Alimentos SA',data:'12/05/2026',itens:'Carne Bovina',val:'R$ 5.600,00'},
+    {id:5,forn:'Distribuidora Norte',data:'16/05/2026',itens:'Óleo de Soja',val:'R$ 1.740,00'},
+    {id:6,forn:'Cerealista Alagoana',data:'18/05/2026',itens:'Arroz Tipo 1',val:'R$ 2.970,00'},
+    {id:7,forn:'Alimentos SA',data:'20/05/2026',itens:'Feijão Carioca',val:'R$ 2.340,00'},
+    {id:8,forn:'Distribuidora Norte',data:'23/05/2026',itens:'Carne Bovina',val:'R$ 4.980,00'},
+    {id:9,forn:'Cerealista Alagoana',data:'27/05/2026',itens:'Macarrão',val:'R$ 1.560,00'},
+    {id:10,forn:'Alimentos SA',data:'30/05/2026',itens:'Óleo de Soja',val:'R$ 1.620,00'}
+  );
+
+  PREMISSAS_FINANCEIRAS.pratosPorDia = 267;
+  PREMISSAS_FINANCEIRAS.precoPrato = 1;
+  PREMISSAS_FINANCEIRAS.custoFixoMensal = 38000;
+
+  normalizarRefeicoes();
+  sortDoacoes();
+  sortEstoque();
+
+  preencherFormularioPremissas();
+  saveData();
+  renderTables();
+  renderCharts();
+  showToast('Cenário simulado de ~8.000 refeições/mês carregado.');
+}
+
 // Load persisted mock data (if exists)
 // Load persisted mock data (if exists). Prefer server API, fallback to localStorage.
 async function loadData(){
@@ -330,8 +469,181 @@ function getDashboardMetrics(){
   return { totalItems, totalStockQty, itensVencendo, itensVencidos, doacoesMes, totalProduzido, totalServido, performance };
 }
 
+// Estimate costs based on consumption assumptions and 500 plates/day
+function calcularEstimativaCustos(pratosPorDia = PREMISSAS_FINANCEIRAS.pratosPorDia){
+  const consumoPorPrato = PREMISSAS_FINANCEIRAS.consumoPorPrato;
+  const precoUnitario = PREMISSAS_FINANCEIRAS.precoUnitario;
+
+  // compute daily cost
+  let custoDia = 0;
+  Object.keys(consumoPorPrato).forEach(nome => {
+    const consumoUnit = consumoPorPrato[nome] * pratosPorDia; // kg or L per day
+    const preco = precoUnitario[nome] || 0;
+    custoDia += consumoUnit * preco;
+  });
+
+  const custoMes = custoDia * 30;
+  const custoFixoMensal = PREMISSAS_FINANCEIRAS.custoFixoMensal;
+  const custoFixoDia = custoFixoMensal / 30;
+  const custoTotalDia = custoDia + custoFixoDia;
+  const custoTotalMes = custoMes + custoFixoMensal;
+  const precoPrato = PREMISSAS_FINANCEIRAS.precoPrato;
+  const receitaDia = pratosPorDia * precoPrato;
+  const receitaMes = receitaDia * 30;
+  const aporteDia = Math.max(custoTotalDia - receitaDia, 0);
+  const aporteMes = Math.max(custoTotalMes - receitaMes, 0);
+
+  return {
+    pratosPorDia,
+    custoDia: Number(custoDia.toFixed(2)),
+    custoMes: Number(custoMes.toFixed(2)),
+    custoFixoDia: Number(custoFixoDia.toFixed(2)),
+    custoFixoMensal: Number(custoFixoMensal.toFixed(2)),
+    custoTotalDia: Number(custoTotalDia.toFixed(2)),
+    custoTotalMes: Number(custoTotalMes.toFixed(2)),
+    receitaDia: Number(receitaDia.toFixed(2)),
+    receitaMes: Number(receitaMes.toFixed(2)),
+    aporteDia: Number(aporteDia.toFixed(2)),
+    aporteMes: Number(aporteMes.toFixed(2))
+  };
+}
+
+function calcularKpisGerenciais(){
+  const custos = calcularEstimativaCustos(PREMISSAS_FINANCEIRAS.pratosPorDia);
+  const totalProduzido = REFEICOES_DATA.reduce((sum,item)=> sum + (Number(item.prod)||0),0);
+  const totalServido = REFEICOES_DATA.reduce((sum,item)=> sum + (Number(item.serv)||0),0);
+  const aproveitamento = totalProduzido ? (totalServido / totalProduzido) * 100 : 0;
+  const custoPorRefeicao = totalServido ? custos.custoTotalMes / totalServido : 0;
+  const aportePorRefeicao = totalServido ? custos.aporteMes / totalServido : 0;
+
+  const consumo = PREMISSAS_FINANCEIRAS.consumoPorPrato;
+  const diasCobertura = ESTOQUE_DATA
+    .filter(item => consumo[item.nome])
+    .map(item => {
+      const consumoDia = consumo[item.nome] * PREMISSAS_FINANCEIRAS.pratosPorDia;
+      const dias = consumoDia > 0 ? (Number(item.qty) || 0) / consumoDia : 0;
+      return { nome: item.nome, dias };
+    });
+
+  const coberturaMedia = diasCobertura.length
+    ? diasCobertura.reduce((sum,item)=> sum + item.dias,0) / diasCobertura.length
+    : 0;
+
+  const itensCriticos = diasCobertura.filter(item => item.dias < 7).length;
+  const dependenciaDoacoes = (() => {
+    const volumeDoado = DOACOES_DATA.reduce((sum,item)=> sum + parseQty(item.qty),0);
+    const necessidadeMensal = Object.values(consumo).reduce((sum,v)=> sum + v,0) * PREMISSAS_FINANCEIRAS.pratosPorDia * 30;
+    if(necessidadeMensal <= 0) return 0;
+    return (volumeDoado / necessidadeMensal) * 100;
+  })();
+
+  const toStatus = (valor, bomMin, atencaoMin) => {
+    if(valor >= bomMin) return { statusClass:'ok', statusLabel:'Bom' };
+    if(valor >= atencaoMin) return { statusClass:'warn', statusLabel:'Atenção' };
+    return { statusClass:'danger', statusLabel:'Crítico' };
+  };
+
+  const coberturaStatus = toStatus(coberturaMedia, 20, 10);
+  const aproveitamentoStatus = toStatus(aproveitamento, 97, 94);
+  const doacoesStatus = dependenciaDoacoes >= 30
+    ? { statusClass:'ok', statusLabel:'Bom' }
+    : dependenciaDoacoes >= 20
+      ? { statusClass:'warn', statusLabel:'Atenção' }
+      : { statusClass:'danger', statusLabel:'Crítico' };
+  const custoStatus = custoPorRefeicao <= 10
+    ? { statusClass:'ok', statusLabel:'Bom' }
+    : custoPorRefeicao <= 14
+      ? { statusClass:'warn', statusLabel:'Atenção' }
+      : { statusClass:'danger', statusLabel:'Crítico' };
+  const aporteStatus = aportePorRefeicao <= 8
+    ? { statusClass:'ok', statusLabel:'Bom' }
+    : aportePorRefeicao <= 12
+      ? { statusClass:'warn', statusLabel:'Atenção' }
+      : { statusClass:'danger', statusLabel:'Crítico' };
+  const rupturaStatus = itensCriticos === 0
+    ? { statusClass:'ok', statusLabel:'Bom' }
+    : itensCriticos <= 2
+      ? { statusClass:'warn', statusLabel:'Atenção' }
+      : { statusClass:'danger', statusLabel:'Crítico' };
+
+  return [
+    {
+      nome: 'Custo por refeição',
+      valor: 'R$ ' + custoPorRefeicao.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}),
+      meta: '≤ R$ 10,00',
+      detalhe: 'Custo total mensal / refeições servidas do período',
+      ...custoStatus
+    },
+    {
+      nome: 'Aporte público por refeição',
+      valor: 'R$ ' + aportePorRefeicao.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}),
+      meta: '≤ R$ 8,00',
+      detalhe: 'Diferença custo-receita / refeições servidas',
+      ...aporteStatus
+    },
+    {
+      nome: 'Cobertura média de estoque',
+      valor: coberturaMedia.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) + ' dias',
+      meta: '≥ 20 dias',
+      detalhe: 'Dias de autonomia para insumos críticos em 500 pratos/dia',
+      ...coberturaStatus
+    },
+    {
+      nome: 'Itens críticos com risco de ruptura',
+      valor: String(itensCriticos),
+      meta: '0 itens',
+      detalhe: 'Itens com cobertura abaixo de 7 dias',
+      ...rupturaStatus
+    },
+    {
+      nome: 'Dependência de doações',
+      valor: dependenciaDoacoes.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) + '%',
+      meta: '≥ 30%',
+      detalhe: 'Percentual da necessidade mensal coberta por doações',
+      ...doacoesStatus
+    },
+    {
+      nome: 'Aproveitamento da produção',
+      valor: aproveitamento.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) + '%',
+      meta: '≥ 97%',
+      detalhe: 'Relação entre servidas e produzidas',
+      ...aproveitamentoStatus
+    }
+  ];
+}
+
+function renderKpisGerenciais(){
+  const body = document.getElementById('dashboard-kpis-body');
+  if(!body) return;
+
+  const kpis = calcularKpisGerenciais();
+  body.innerHTML = kpis.map(kpi => `
+    <tr>
+      <td><strong>${kpi.nome}</strong><div style="font-size:12px;color:var(--gray-400);margin-top:4px">${kpi.detalhe}</div></td>
+      <td>${kpi.valor}</td>
+      <td>${kpi.meta}</td>
+      <td><span class="badge ${kpi.statusClass}">${kpi.statusLabel}</span></td>
+    </tr>
+  `).join('');
+}
+
 function renderDashboardSummary(){
   const metrics = getDashboardMetrics();
+
+  // update cost estimates (assume 500 pratos por dia)
+  const custos = calcularEstimativaCustos(PREMISSAS_FINANCEIRAS.pratosPorDia);
+  const custoMesEl = document.getElementById('dashboard-custo-mes');
+  const custoDiaEl = document.getElementById('dashboard-custo-dia');
+  const custoMesNoteEl = document.getElementById('dashboard-custo-note');
+  const custoDiaNoteEl = document.getElementById('dashboard-custo-dia-note');
+  const aporteMesEl = document.getElementById('dashboard-aporte-mes');
+  const aporteNoteEl = document.getElementById('dashboard-aporte-note');
+  if(custoMesEl) custoMesEl.textContent = 'R$ ' + custos.custoTotalMes.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if(custoDiaEl) custoDiaEl.textContent = 'R$ ' + custos.custoTotalDia.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if(custoMesNoteEl) custoMesNoteEl.textContent = 'Receita mensal (R$ 1/prato): R$ ' + custos.receitaMes.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if(custoDiaNoteEl) custoDiaNoteEl.textContent = 'Receita diária (R$ 1/prato): R$ ' + custos.receitaDia.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if(aporteMesEl) aporteMesEl.textContent = 'R$ ' + custos.aporteMes.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if(aporteNoteEl) aporteNoteEl.textContent = 'Necessidade diária: R$ ' + custos.aporteDia.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
 
   const itensEl = document.getElementById('dashboard-itens-estoque');
   const alertaEl = document.getElementById('dashboard-alerta-estoque');
@@ -371,6 +683,8 @@ function renderDashboardSummary(){
   if(alert3El){
     alert3El.innerHTML = `<span>ℹ</span><div>O desempenho de atendimento está em <strong>${metrics.performance}%</strong> das refeições produzidas.</div>`;
   }
+
+  renderKpisGerenciais();
 }
 
 function applyTableSearch(){
@@ -423,6 +737,7 @@ function renderTables(){
 
   renderDashboardSummary();
   renderStockSummary();
+  renderResumoRefeicoes();
   renderMovimentacoes();
   applyTableSearch();
 }
@@ -658,6 +973,77 @@ function renderStockSummary(){
   if(vencidosEl) vencidosEl.textContent = `${vencidos} itens`;
 }
 
+function extrairMesAno(valorData){
+  const ts = converterDataParaTimestamp(valorData);
+  if(ts === null) return null;
+  const d = new Date(ts);
+  return { mes: d.getMonth(), ano: d.getFullYear() };
+}
+
+function renderResumoRefeicoes(){
+  const ordenadas = ordenarRefeicoesPorData(REFEICOES_DATA);
+  const ultima = ordenadas[0];
+  const referencia = ultima ? extrairMesAno(ultima.data) : null;
+
+  const produzidasHojeEl = document.getElementById('refeicoes-produzidas-hoje');
+  const servidasHojeEl = document.getElementById('refeicoes-servidas-hoje');
+  const produzidasMesEl = document.getElementById('refeicoes-produzidas-mes');
+  const servidasMesEl = document.getElementById('refeicoes-servidas-mes');
+
+  const totalMes = ordenadas.reduce((acc, item) => {
+    const chave = extrairMesAno(item.data);
+    if(!referencia || !chave || chave.mes !== referencia.mes || chave.ano !== referencia.ano) return acc;
+    acc.prod += Number(item.prod) || 0;
+    acc.serv += Number(item.serv) || 0;
+    return acc;
+  }, { prod: 0, serv: 0 });
+
+  if(produzidasHojeEl) produzidasHojeEl.textContent = (ultima?.prod || 0).toLocaleString('pt-BR');
+  if(servidasHojeEl) servidasHojeEl.textContent = (ultima?.serv || 0).toLocaleString('pt-BR');
+  if(produzidasMesEl) produzidasMesEl.textContent = totalMes.prod.toLocaleString('pt-BR');
+  if(servidasMesEl) servidasMesEl.textContent = totalMes.serv.toLocaleString('pt-BR');
+}
+
+function simularDadosRefeicoes(){
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const mes = hoje.getMonth();
+  const diasUteis = [];
+
+  for(let dia = 1; dia <= 31; dia++){
+    const data = new Date(ano, mes, dia);
+    if(data.getMonth() !== mes) break;
+    const semana = data.getDay();
+    if(semana !== 0 && semana !== 6) diasUteis.push(data);
+  }
+
+  const diasConsiderados = diasUteis.slice(0, 22);
+  const totalServidasAlvo = 8000;
+  const base = Math.floor(totalServidasAlvo / diasConsiderados.length);
+  let restante = totalServidasAlvo - (base * diasConsiderados.length);
+
+  const variacoes = [-8,-4,-2,0,3,5,7,4,1,-1,-3,2,6,-2,0,4,-5,3,2,-1,5,1];
+  const simuladas = diasConsiderados.map((data, idx) => {
+    const extra = restante > 0 ? 1 : 0;
+    if(restante > 0) restante -= 1;
+    const serv = Math.max(320, base + extra + (variacoes[idx] || 0));
+    const prod = serv + 10 + (idx % 6);
+    return {
+      id: idx + 1,
+      data: formatarDataBrasil(data.toISOString().split('T')[0]),
+      prod,
+      serv
+    };
+  });
+
+  REFEICOES_DATA.splice(0, REFEICOES_DATA.length, ...simuladas);
+  normalizarRefeicoes();
+  saveData();
+  renderTables();
+  renderCharts();
+  showToast('Dados simulados de refeições carregados (~8.000/mês).');
+}
+
 function renderMovimentacoes(){
   const container = document.getElementById('lista-movimentacoes');
   if(!container) return;
@@ -859,8 +1245,17 @@ if(topbarSearch){
 // initialize UI state on load
 document.addEventListener('DOMContentLoaded', async () => {
   initUIState();
+  carregarPremissasFinanceiras();
 
   await loadData();
+
+  const jaAplicouCenario = localStorage.getItem('CENARIO_SIMULADO_8000') === 'true';
+  if(!jaAplicouCenario){
+    carregarCenarioSimulado8000();
+    localStorage.setItem('CENARIO_SIMULADO_8000', 'true');
+  }
+
+  preencherFormularioPremissas();
 
   const usuarioSalvo = localStorage.getItem('USUARIO_LOGADO');
 

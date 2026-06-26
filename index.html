@@ -148,6 +148,24 @@
           <div class="stat-label">Refeições servidas (mês)</div>
           <div class="stat-note ok" id="dashboard-servidas-note">Atualizando...</div>
         </div>
+        <div class="stat-card">
+          <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22"/></svg></div>
+          <div class="stat-value" id="dashboard-custo-mes">R$ 0,00</div>
+          <div class="stat-label">Custo total estimado (mês)</div>
+          <div class="stat-note" id="dashboard-custo-note">Baseado em 500 pratos/dia</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/></svg></div>
+          <div class="stat-value" id="dashboard-custo-dia">R$ 0,00</div>
+          <div class="stat-label">Custo total estimado (dia)</div>
+          <div class="stat-note" id="dashboard-custo-dia-note">500 pratos/dia</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18"/><path d="M12 3v18"/></svg></div>
+          <div class="stat-value" id="dashboard-aporte-mes">R$ 0,00</div>
+          <div class="stat-label">Aporte da prefeitura (mês)</div>
+          <div class="stat-note" id="dashboard-aporte-note">Diferença entre custo e receita</div>
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
         <div class="section-card">
@@ -183,6 +201,43 @@
           </div>
         </div>
       </div>
+      <div style="margin-top:16px">
+        <div class="section-card">
+          <div class="section-header"><div class="section-title">KPIs gerenciais prioritários</div></div>
+          <table>
+            <thead><tr><th>Indicador</th><th>Valor atual</th><th>Meta</th><th>Status</th></tr></thead>
+            <tbody id="dashboard-kpis-body">
+              <tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:18px">Carregando KPIs...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div style="margin-top:16px">
+        <div class="section-card">
+          <div class="section-header"><div class="section-title">Simulador financeiro (premissas)</div></div>
+          <div class="section-body">
+            <div class="form-row cols3">
+              <div>
+                <label class="form-label">Pratos por dia</label>
+                <input id="sim-pratos-dia" class="form-input" type="number" min="1" step="1" value="267">
+              </div>
+              <div>
+                <label class="form-label">Preço por prato (R$)</label>
+                <input id="sim-preco-prato" class="form-input" type="number" min="0" step="0.01" value="1.00">
+              </div>
+              <div>
+                <label class="form-label">Custo fixo mensal (R$)</label>
+                <input id="sim-custo-fixo" class="form-input" type="number" min="0" step="100" value="38000">
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn blue" onclick="salvarPremissasFinanceiras()">Salvar premissas</button>
+              <button class="btn outline" onclick="carregarCenarioSimulado8000()">Carregar cenário simulado (8.000/mês)</button>
+            </div>
+            <div class="alert info" style="margin-top:12px"><span>ℹ</span> As premissas salvas recalculam automaticamente custo total, receita e aporte da prefeitura.</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ESTOQUE -->
@@ -202,7 +257,6 @@
           <div class="section-title">Lista de Alimentos</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn outline" onclick="openModal('modal-alimento')">+ Novo alimento</button>
-            <button class="btn blue" onclick="openMovimentacaoModal()">+ Movimentação</button>
           </div>
         </div>
         <table>
@@ -260,13 +314,16 @@
     <div class="page" id="page-refeicoes">
       <div class="page-header">
         <div><h1>Controle de Refeições</h1><p>Registro diário de produção e serviço</p></div>
-        <button class="btn blue" onclick="openModal('modal-refeicao')">+ Registrar refeições</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn outline" onclick="simularDadosRefeicoes()">Simular mês</button>
+          <button class="btn blue" onclick="openModal('modal-refeicao')">+ Registrar refeições</button>
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
-        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Produzidas hoje</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">380</div></div>
-        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Servidas hoje</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">368</div></div>
-        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Produzidas no mês</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">7.850</div></div>
-        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Servidas no mês</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">7.620</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Produzidas hoje</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px" id="refeicoes-produzidas-hoje">0</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Servidas hoje</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px" id="refeicoes-servidas-hoje">0</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Produzidas no mês</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px" id="refeicoes-produzidas-mes">0</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Servidas no mês</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px" id="refeicoes-servidas-mes">0</div></div>
       </div>
       <div class="section-card">
         <div class="section-header"><div class="section-title">Registros de Refeições</div></div>

@@ -90,6 +90,23 @@ function normalizarRefeicoes(){
   REFEICOES_DATA.splice(0, REFEICOES_DATA.length, ...ordenarRefeicoesPorData(REFEICOES_DATA));
 }
 
+function sortEstoque(){
+  try{
+    ESTOQUE_DATA.sort((a,b)=>{
+      return normalizarTexto(a.nome).localeCompare(normalizarTexto(b.nome));
+    });
+  }catch(e){console.warn('Erro ao ordenar estoque',e)}
+}
+
+function sortDoacoes(){
+  try{
+    DOACOES_DATA.sort((a,b)=>{
+      // sort by donated items string (itens)
+      return normalizarTexto(a.itens || '').localeCompare(normalizarTexto(b.itens || ''));
+    });
+  }catch(e){console.warn('Erro ao ordenar doações',e)}
+}
+
 let currentUser=null;
 // Chart instances
 let chartRefeicoes=null;
@@ -99,6 +116,37 @@ let chartDoacoes=null;
 // Load persisted mock data (if exists). Prefer server API, fallback to localStorage.
 async function loadData(){
   try{
+    // If running from a file:// origin prefer client seed/localStorage
+    if(location.protocol === 'file:'){
+      // initialize localStorage from client seed if empty
+      try{
+        if(window.SEED_DATA && !localStorage.getItem('ESTOQUE_DATA')){
+          localStorage.setItem('ESTOQUE_DATA', JSON.stringify(window.SEED_DATA.ESTOQUE_DATA || []));
+          localStorage.setItem('DOACOES_DATA', JSON.stringify(window.SEED_DATA.DOACOES_DATA || []));
+          localStorage.setItem('COMPRAS_DATA', JSON.stringify(window.SEED_DATA.COMPRAS_DATA || []));
+          localStorage.setItem('REFEICOES_DATA', JSON.stringify(window.SEED_DATA.REFEICOES_DATA || []));
+          localStorage.setItem('MOVIMENTACOES_DATA', JSON.stringify(window.SEED_DATA.MOVIMENTACOES_DATA || []));
+        }
+      }catch(e){console.warn('Erro ao semear localStorage com seed client',e)}
+      // load from localStorage
+      try{
+        const sEst=localStorage.getItem('ESTOQUE_DATA');
+        const sDo=localStorage.getItem('DOACOES_DATA');
+        const sComp=localStorage.getItem('COMPRAS_DATA');
+        const sRef=localStorage.getItem('REFEICOES_DATA');
+        const sMov=localStorage.getItem('MOVIMENTACOES_DATA');
+        if(sEst) ESTOQUE_DATA.splice(0,ESTOQUE_DATA.length,...JSON.parse(sEst));
+        if(sDo) DOACOES_DATA.splice(0,DOACOES_DATA.length,...JSON.parse(sDo));
+        if(sComp) COMPRAS_DATA.splice(0,COMPRAS_DATA.length,...JSON.parse(sComp));
+        if(sRef) REFEICOES_DATA.splice(0,REFEICOES_DATA.length,...JSON.parse(sRef));
+        if(sMov) MOVIMENTACOES_DATA.splice(0,MOVIMENTACOES_DATA.length,...JSON.parse(sMov));
+          normalizarRefeicoes();
+          sortEstoque();
+          sortDoacoes();
+      }catch(e){console.warn('Erro ao carregar dados do localStorage (file):',e)}
+      return;
+    }
+
     const res = await fetch('/api/data');
     if(res.ok){
       const json = await res.json();
@@ -108,6 +156,8 @@ async function loadData(){
       if(json.REFEICOES_DATA) REFEICOES_DATA.splice(0,REFEICOES_DATA.length,...json.REFEICOES_DATA);
       if(json.MOVIMENTACOES_DATA) MOVIMENTACOES_DATA.splice(0,MOVIMENTACOES_DATA.length,...json.MOVIMENTACOES_DATA);
       normalizarRefeicoes();
+      sortEstoque();
+      sortDoacoes();
       return;
     }
   }catch(e){
@@ -125,12 +175,26 @@ async function loadData(){
     if(sRef) REFEICOES_DATA.splice(0,REFEICOES_DATA.length,...JSON.parse(sRef));
     if(sMov) MOVIMENTACOES_DATA.splice(0,MOVIMENTACOES_DATA.length,...JSON.parse(sMov));
     normalizarRefeicoes();
+    sortEstoque();
+    sortDoacoes();
   }catch(e){console.warn('Erro ao carregar dados do localStorage',e)}
 }
 
 // Save to server API if available, otherwise to localStorage
 async function saveData(){
   const payload = {ESTOQUE_DATA,DOACOES_DATA,COMPRAS_DATA,REFEICOES_DATA,MOVIMENTACOES_DATA};
+  // If running as file:// prefer localStorage only
+  if(location.protocol === 'file:'){
+    try{
+      localStorage.setItem('ESTOQUE_DATA',JSON.stringify(ESTOQUE_DATA));
+      localStorage.setItem('DOACOES_DATA',JSON.stringify(DOACOES_DATA));
+      localStorage.setItem('COMPRAS_DATA',JSON.stringify(COMPRAS_DATA));
+      localStorage.setItem('REFEICOES_DATA',JSON.stringify(REFEICOES_DATA));
+      localStorage.setItem('MOVIMENTACOES_DATA',JSON.stringify(MOVIMENTACOES_DATA));
+    }catch(err){console.warn('Erro ao salvar dados no localStorage (file):',err)}
+    return;
+  }
+
   try{
     const res = await fetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(!res.ok) throw new Error('server error');
@@ -324,6 +388,8 @@ function applyTableSearch(){
 }
 
 function renderTables(){
+  sortEstoque();
+  sortDoacoes();
   const te=document.getElementById('tabela-estoque');
   if(te){
     if(!ESTOQUE_DATA.length){
@@ -332,7 +398,7 @@ function renderTables(){
       te.innerHTML=ESTOQUE_DATA.map(i=>{
         const sc=i.status==='ok'?'ok':i.status==='warn'?'warn':'danger';
         const sl=i.status==='ok'?'Dentro da validade':i.status==='warn'?'Atenção':'Vencido';
-        return`<tr><td>${i.id}</td><td><strong>${i.nome}</strong></td><td>${i.cat}</td><td>${i.qty}</td><td>${i.un}</td><td>${i.val || '—'}</td><td><span class="badge ${sc}">${sl}</span></td><td><div style="display:flex;gap:6px"><button class="btn outline btn-sm" onclick="openMovimentacaoModal('${i.nome}')">Mov.</button><button class="btn blue btn-sm" onclick="abrirSaidaRapida('${i.nome}')">Saída</button></div></td></tr>`;
+        return`<tr><td>${i.id}</td><td><strong>${i.nome}</strong></td><td>${i.cat}</td><td>${i.qty}</td><td>${i.un}</td><td>${i.val || '—'}</td><td><span class="badge ${sc}">${sl}</span></td><td><div style="display:flex;gap:6px"><button class="btn outline btn-sm" onclick="openMovimentacaoModal('${i.nome}')">Entrada</button><button class="btn blue btn-sm" onclick="abrirSaidaRapida('${i.nome}')">Saída</button><button class="btn danger btn-sm" onclick="deleteItem(${i.id})">Excluir</button></div></td></tr>`;
       }).join('');
     }
   }
@@ -424,6 +490,7 @@ function closeModal(id){document.getElementById(id).classList.remove('open')}
 
 function openMovimentacaoModal(itemNome=''){
   const select = document.getElementById('mov-item');
+  sortEstoque();
   const dataInput = document.getElementById('mov-data');
   const obsInput = document.getElementById('mov-obs');
   const qtyInput = document.getElementById('mov-qty');
@@ -438,6 +505,34 @@ function openMovimentacaoModal(itemNome=''){
   if(unidadeSelect) unidadeSelect.value = 'kg';
 
   openModal('modal-movimentacao');
+}
+
+function openDoacaoModal(){
+  const m = document.getElementById('modal-doacao');
+  if(!m) return openModal('modal-doacao');
+
+  // populate alimento select from estoque
+  try{
+    const selects = m.querySelectorAll('select.form-select');
+    const inputs = m.querySelectorAll('input');
+    const doadorSelect = selects[0];
+    const alimentoSelect = selects[1];
+    const unidadeSelect = selects[2];
+
+    if(alimentoSelect){
+      sortEstoque();
+      alimentoSelect.innerHTML = ESTOQUE_DATA.map(item => `<option value="${item.nome}">${item.nome}</option>`).join('');
+    }
+
+    // default date to today
+    if(inputs[0]) inputs[0].value = new Date().toISOString().split('T')[0];
+    // default quantity
+    if(inputs[1]) inputs[1].value = inputs[1].value || 1;
+    // default unit
+    if(unidadeSelect) unidadeSelect.value = 'kg';
+  }catch(e){console.warn('Erro ao preparar modal de doação', e)}
+
+  openModal('modal-doacao');
 }
 
 function abrirSaidaRapida(itemNome){
@@ -584,10 +679,27 @@ function saveAlimento(){
   const cat = sel?sel.value:'Outros';
   const unit = m.querySelector('select.form-select:nth-of-type(2)')?m.querySelector('select.form-select:nth-of-type(2)').value:'kg';
   const qty = parseFloat(m.querySelector('input[type=number]')?.value||0);
-  const val = m.querySelector('input[type=date]')?.value||'';
+  const valRaw = m.querySelector('input[type=date]')?.value||'';
+  const val = valRaw ? formatarDataBrasil(valRaw) : '';
   const id = ESTOQUE_DATA.length?Math.max(...ESTOQUE_DATA.map(x=>x.id))+1:1;
   ESTOQUE_DATA.push({id,nome,cat,qty,un:unit,val,status:'ok'});
+  sortEstoque();
   saveData(); renderTables(); closeModal('modal-alimento'); showToast('Alimento cadastrado e salvo.');
+}
+
+function deleteItem(id){
+  if(!confirm('Excluir item do estoque permanentemente? Esta ação não pode ser desfeita.')) return;
+  const idx = ESTOQUE_DATA.findIndex(x => Number(x.id) === Number(id));
+  if(idx === -1){ showToast('Item não encontrado.'); return; }
+    const itemName = ESTOQUE_DATA[idx].nome;
+    ESTOQUE_DATA.splice(idx,1);
+    // remove movimentacoes that reference this item name
+    for(let i = MOVIMENTACOES_DATA.length - 1; i >= 0; i--){
+      if(normalizarTexto(MOVIMENTACOES_DATA[i].item) === normalizarTexto(itemName)){
+        MOVIMENTACOES_DATA.splice(i,1);
+      }
+    }
+  saveData(); renderTables(); showToast('Item excluído do estoque.');
 }
 
 function saveDoacao(){
@@ -613,18 +725,30 @@ function saveDoacao(){
     itens: alimento,
     qty: qty + ' ' + unidade
   });
+  sortDoacoes();
+  // If donated name corresponds to an existing estoque item, use the exact estoque name
+  try{
+    const donatedNorm = normalizarTexto(alimento);
+    const match = ESTOQUE_DATA.find(item => {
+      const itemNorm = normalizarTexto(item.nome);
+      return itemNorm.includes(donatedNorm) || donatedNorm.includes(itemNorm);
+    });
+    if(match){
+      alimento = match.nome;
+    }
+  }catch(e){console.warn('Erro ao normalizar nome da doação', e)}
 
-  adicionarAoEstoque({
+  // Add to estoque and get the affected item (existing or new)
+  const affected = adicionarAoEstoque({
     nome: alimento,
     quantidade: qty,
     unidade: unidade,
     categoria: inferirCategoria(alimento)
   });
-
-  const itemDoado = ESTOQUE_DATA.find(item => normalizarTexto(item.nome) === normalizarTexto(alimento));
-  if(itemDoado){
-    itemDoado.origem = 'doacao';
+  if(affected){
+    affected.origem = 'doacao';
   }
+  sortEstoque();
 
   saveData();
   renderTables();
@@ -665,6 +789,7 @@ function saveCompra(){
     unidade: 'kg',
     categoria: inferirCategoria(prod)
   });
+  sortEstoque();
 
   saveData();
   renderTables();

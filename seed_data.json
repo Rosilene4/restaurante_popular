@@ -1,0 +1,51 @@
+{
+  "ESTOQUE_DATA": [
+    {"id":1,"nome":"Arroz Tipo 1","cat":"Grãos","qty":180,"un":"kg","val":"10/11/2026","status":"ok"},
+    {"id":2,"nome":"Feijão Carioca","cat":"Grãos","qty":120,"un":"kg","val":"05/10/2026","status":"ok"},
+    {"id":3,"nome":"Macarrão","cat":"Massas","qty":85,"un":"kg","val":"15/08/2026","status":"ok"},
+    {"id":4,"nome":"Farinha de Trigo","cat":"Grãos","qty":70,"un":"kg","val":"12/09/2026","status":"ok"},
+    {"id":5,"nome":"Milho Verde","cat":"Grãos","qty":60,"un":"kg","val":"22/08/2026","status":"ok"},
+    {"id":6,"nome":"Óleo de Soja","cat":"Óleos","qty":50,"un":"L","val":"12/10/2026","status":"ok"},
+    {"id":7,"nome":"Carne Bovina","cat":"Carnes","qty":24,"un":"kg","val":"20/05/2026","status":"warn"},
+    {"id":8,"nome":"Frango","cat":"Carnes","qty":32,"un":"kg","val":"18/06/2026","status":"ok"},
+    {"id":9,"nome":"Salsicha","cat":"Carnes","qty":18,"un":"kg","val":"17/06/2026","status":"warn"},
+    {"id":10,"nome":"Leite em Pó","cat":"Laticínios","qty":12,"un":"kg","val":"15/04/2026","status":"danger"},
+    {"id":11,"nome":"Queijo Mussarela","cat":"Laticínios","qty":16,"un":"kg","val":"16/06/2026","status":"ok"},
+    {"id":12,"nome":"Açúcar","cat":"Adoçantes","qty":28,"un":"kg","val":"20/08/2026","status":"warn"},
+    {"id":13,"nome":"Sal","cat":"Temperos","qty":35,"un":"kg","val":"30/08/2026","status":"ok"},
+    {"id":14,"nome":"Cebola","cat":"Legumes","qty":40,"un":"kg","val":"01/07/2026","status":"ok"},
+    {"id":15,"nome":"Tomate","cat":"Legumes","qty":30,"un":"kg","val":"02/07/2026","status":"ok"},
+    {"id":16,"nome":"Batata","cat":"Legumes","qty":55,"un":"kg","val":"03/07/2026","status":"ok"},
+    {"id":17,"nome":"Alho","cat":"Temperos","qty":22,"un":"kg","val":"04/07/2026","status":"ok"},
+    {"id":18,"nome":"Cenoura","cat":"Legumes","qty":25,"un":"kg","val":"05/07/2026","status":"ok"},
+    {"id":19,"nome":"Abóbora","cat":"Legumes","qty":20,"un":"kg","val":"06/07/2026","status":"ok"},
+    {"id":20,"nome":"Banana","cat":"Frutas","qty":35,"un":"kg","val":"07/07/2026","status":"ok"}
+  ],
+  "DOACOES_DATA": [
+    {"id":1,"doador":"Supermercado Bom Preço","data":"18/05/2026","itens":"Arroz, Feijão","qty":"45 kg"},
+    {"id":2,"doador":"Igreja Evangélica Central","data":"14/05/2026","itens":"Macarrão, Óleo","qty":"28 kg"},
+    {"id":3,"doador":"Conab / Governo","data":"10/05/2026","itens":"Arroz","qty":"100 kg"},
+    {"id":4,"doador":"Supermercado Bom Preço","data":"05/05/2026","itens":"Feijão, Açúcar","qty":"60 kg"},
+    {"id":5,"doador":"Associação Moradores","data":"02/05/2026","itens":"Temperos, Sal","qty":"15 kg"}
+  ],
+  "COMPRAS_DATA": [
+    {"id":1,"forn":"Alimentos SA","data":"18/05/2026","itens":"Frango, Arroz","val":"R$ 1.240,00"},
+    {"id":2,"forn":"Distribuidora Norte","data":"12/05/2026","itens":"Feijão, Óleo","val":"R$ 980,00"},
+    {"id":3,"forn":"Cerealista Alagoana","data":"08/05/2026","itens":"Arroz, Macarrão","val":"R$ 1.620,00"},
+    {"id":4,"forn":"Alimentos SA","data":"03/05/2026","itens":"Carne Bovina","val":"R$ 2.100,00"},
+    {"id":5,"forn":"Distribuidora Norte","data":"01/05/2026","itens":"Leite em Pó","val":"R$ 900,00"}
+  ],
+  "REFEICOES_DATA": [
+    {"id":1,"data":"18/05/2026","prod":380,"serv":368},
+    {"id":2,"data":"17/05/2026","prod":395,"serv":390},
+    {"id":3,"data":"16/05/2026","prod":350,"serv":340},
+    {"id":4,"data":"15/05/2026","prod":395,"serv":390},
+    {"id":5,"data":"14/05/2026","prod":380,"serv":371},
+    {"id":6,"data":"13/05/2026","prod":360,"serv":342},
+    {"id":7,"data":"12/05/2026","prod":400,"serv":388}
+  ],
+  "MOVIMENTACOES_DATA": [
+    {"id":1,"tipo":"entrada","item":"Arroz Tipo 1","quantidade":50,"unidade":"kg","data":"2026-05-18","obs":"Compra registrada"},
+    {"id":2,"tipo":"saida","item":"Arroz Tipo 1","quantidade":12,"unidade":"kg","data":"2026-05-17","obs":"Consumo para produção"}
+  ]
+}

@@ -126,27 +126,27 @@
       <div class="stat-grid">
         <div class="stat-card">
           <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg></div>
-          <div class="stat-value">128</div>
+          <div class="stat-value" id="dashboard-itens-estoque">0</div>
           <div class="stat-label">Itens em estoque</div>
-          <div class="stat-note warn">⚠ 3 itens vencendo</div>
+          <div class="stat-note warn" id="dashboard-alerta-estoque">Carregando...</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></div>
-          <div class="stat-value">320,5 kg</div>
+          <div class="stat-value" id="dashboard-doacoes-mes">0 kg</div>
           <div class="stat-label">Doações recebidas (mês)</div>
-          <div class="stat-note ok">↑ 15% vs mês anterior</div>
+          <div class="stat-note ok" id="dashboard-doacoes-note">Atualizando...</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div>
-          <div class="stat-value">7.850</div>
+          <div class="stat-value" id="dashboard-refeicoes-producao">0</div>
           <div class="stat-label">Refeições produzidas (mês)</div>
-          <div class="stat-note ok">Dentro do planejado</div>
+          <div class="stat-note ok" id="dashboard-producao-note">Atualizando...</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/></svg></div>
-          <div class="stat-value">7.620</div>
+          <div class="stat-value" id="dashboard-refeicoes-servidas">0</div>
           <div class="stat-label">Refeições servidas (mês)</div>
-          <div class="stat-note ok">97,1% das produzidas</div>
+          <div class="stat-note ok" id="dashboard-servidas-note">Atualizando...</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
@@ -167,9 +167,9 @@
         <div class="section-card">
           <div class="section-header"><div class="section-title">Alertas do sistema</div></div>
           <div class="section-body">
-            <div class="alert warn"><span>⚠</span><div><strong>3 alimentos</strong> com validade próxima do vencimento (menos de 7 dias).</div></div>
-            <div class="alert warn"><span>⚠</span><div>Estoque de <strong>Arroz</strong> abaixo do nível mínimo recomendado.</div></div>
-            <div class="alert info"><span>ℹ</span><div>Doações do mês <strong>15% acima</strong> do mês anterior.</div></div>
+            <div class="alert warn" id="dashboard-alert-1"><span>⚠</span><div>Atualizando alertas...</div></div>
+            <div class="alert warn" id="dashboard-alert-2"><span>⚠</span><div>Atualizando alertas...</div></div>
+            <div class="alert info" id="dashboard-alert-3"><span>ℹ</span><div>Atualizando alertas...</div></div>
           </div>
         </div>
         <div class="section-card">
@@ -192,17 +192,17 @@
         <button class="btn blue" onclick="openModal('modal-alimento')">+ Novo alimento</button>
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
-        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Itens cadastrados</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">128</div></div>
-        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Total em estoque</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">3.245 kg</div></div>
-        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Validade próxima</div><div style="font-size:22px;font-weight:700;color:var(--amber-600);margin-top:4px">12 itens</div></div>
-        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Itens vencidos</div><div style="font-size:22px;font-weight:700;color:var(--red-600);margin-top:4px">2 itens</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Itens cadastrados</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px" id="estoque-total-itens">0</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Total em estoque</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px" id="estoque-total-quantidade">0 kg</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Validade próxima</div><div style="font-size:22px;font-weight:700;color:var(--amber-600);margin-top:4px" id="estoque-validade-proxima">0 itens</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Itens vencidos</div><div style="font-size:22px;font-weight:700;color:var(--red-600);margin-top:4px" id="estoque-itens-vencidos">0 itens</div></div>
       </div>
       <div class="section-card">
         <div class="section-header">
           <div class="section-title">Lista de Alimentos</div>
-          <div style="display:flex;gap:8px">
-            <input class="form-input" placeholder="Buscar alimento..." style="width:200px;padding:7px 12px;font-size:13px">
-            <select class="form-select" style="width:130px"><option>Todas categorias</option><option>Grãos</option><option>Carnes</option><option>Laticínios</option><option>Óleos</option><option>Massas</option></select>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn outline" onclick="openModal('modal-alimento')">+ Novo alimento</button>
+            <button class="btn blue" onclick="openMovimentacaoModal()">+ Movimentação</button>
           </div>
         </div>
         <table>
@@ -210,13 +210,17 @@
           <tbody id="tabela-estoque"></tbody>
         </table>
       </div>
+      <div class="section-card">
+        <div class="section-header"><div class="section-title">Últimas movimentações do estoque</div></div>
+        <div class="section-body" id="lista-movimentacoes"></div>
+      </div>
     </div>
 
     <!-- DOAÇÕES -->
     <div class="page" id="page-doacoes">
       <div class="page-header">
         <div><h1>Registro de Doações</h1><p>Controle de doadores e alimentos recebidos</p></div>
-        <button class="btn blue" onclick="openModal('modal-doacao')">+ Nova doação</button>
+        <button class="btn blue" onclick="openDoacaoModal()">+ Nova doação</button>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
         <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Doadores cadastrados</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">23</div></div>
@@ -354,6 +358,29 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-movimentacao">
+  <div class="modal">
+    <h2>+ Registrar movimentação de estoque</h2>
+    <div class="form-row cols2">
+      <div><label class="form-label">Item</label><select class="form-select" id="mov-item"></select></div>
+      <div><label class="form-label">Tipo</label><select class="form-select" id="mov-tipo"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div>
+    </div>
+    <div class="form-row cols3">
+      <div><label class="form-label">Quantidade</label><input class="form-input" type="number" id="mov-qty" value="10" min="0"></div>
+      <div><label class="form-label">Unidade</label><select class="form-select" id="mov-unidade"><option>kg</option><option>L</option><option>un</option><option>cx</option></select></div>
+      <div><label class="form-label">Data</label><input class="form-input" type="date" id="mov-data"></div>
+    </div>
+    <div class="form-row">
+      <div><label class="form-label">Motivo / Observação</label><input class="form-input" id="mov-obs" placeholder="Ex.: Consumo para produção"></div>
+    </div>
+    <div class="alert info"><span>ℹ</span> As entradas aumentam o saldo e as saídas reduzem o saldo do item selecionado.</div>
+    <div class="modal-footer">
+      <button class="btn outline" onclick="closeModal('modal-movimentacao')">Cancelar</button>
+      <button class="btn blue" onclick="saveMovimentacao()">Salvar movimentação</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-doacao">
   <div class="modal">
     <h2>+ Registrar Doação</h2>
@@ -435,6 +462,7 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="js/seed_client.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

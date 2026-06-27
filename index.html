@@ -27,14 +27,8 @@
       <input class="form-input" id="inp-senha" type="password" placeholder="Digite sua senha" value="1234">
     </div>
     <button class="btn-primary" onclick="doLogin()">Entrar no Sistema</button>
-    <div class="profiles-hint">
-      <p>Perfis disponíveis neste protótipo:</p>
-      <div class="profile-row">👤 admin / 1234 — Administrador</div>
-      <div class="profile-row">👤 gestor / 1234 — Gestor</div>
-      <div class="profile-row">👤 estoque / 1234 — Responsável de Estoque</div>
-      <div class="profile-row">👤 doacoes / 1234 — Responsável de Doações</div>
-      <div class="profile-row">👤 producao / 1234 — Funcionário de Produção</div>
-    </div>
+    <!-- Protótipo: acesso restrito apenas ao administrador -->
+    <div style="margin-top:14px;color:var(--gray-500);font-size:13px">Acesso restrito: apenas o perfil <strong>administrador</strong> é habilitado neste protótipo.</div>
   </div>
 </div>
 
@@ -75,11 +69,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
       Relatórios
     </div>
-    <div class="nav-section" id="nav-admin-section">Administração</div>
-    <div class="nav-item" id="nav-usuarios" onclick="goPage('usuarios')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-      Usuários
-    </div>
+    <!-- Administração / Usuários removidos - acesso apenas para administrador -->
   </nav>
   <div class="sidebar-footer">
     <div class="user-chip">
@@ -137,6 +127,18 @@
           <div class="stat-note ok" id="dashboard-doacoes-note">Atualizando...</div>
         </div>
         <div class="stat-card">
+          <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+          <div class="stat-value" id="dashboard-doadores-registrados">0</div>
+          <div class="stat-label">Doadores cadastrados</div>
+          <div class="stat-note" id="dashboard-doadores-note">Total de doadores únicos</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22"/></svg></div>
+          <div class="stat-value" id="dashboard-doacoes-count">0</div>
+          <div class="stat-label">Doações este mês</div>
+          <div class="stat-note" id="dashboard-doacoes-count-note">Eventos de doação</div>
+        </div>
+        <div class="stat-card">
           <div class="stat-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div>
           <div class="stat-value" id="dashboard-refeicoes-producao">0</div>
           <div class="stat-label">Refeições produzidas (mês)</div>
@@ -166,6 +168,42 @@
           <div class="stat-label">Aporte da prefeitura (mês)</div>
           <div class="stat-note" id="dashboard-aporte-note">Diferença entre custo e receita</div>
         </div>
+        <div class="stat-card">
+          <div class="stat-icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg></div>
+          <div class="stat-value" id="dashboard-gasto-compras">R$ 0,00</div>
+          <div class="stat-label">Gasto real em compras (mês)</div>
+          <div class="stat-note" id="dashboard-gasto-compras-note">Total das notas de compra</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+          <div class="stat-value" id="dashboard-beneficiarios">0</div>
+          <div class="stat-label">Beneficiários únicos (mês)</div>
+          <div class="stat-note" id="dashboard-beneficiarios-note">Estimativa de pessoas atendidas</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <div class="stat-value" id="dashboard-beneficio-social">R$ 0,00</div>
+          <div class="stat-label">Benefício social gerado (mês)</div>
+          <div class="stat-note" id="dashboard-beneficio-note">Economia gerada aos beneficiários</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+          <div class="stat-value" id="dashboard-refeicoes-ano">0</div>
+          <div class="stat-label">Refeições no ano (acumulado)</div>
+          <div class="stat-note" id="dashboard-refeicoes-ano-note">Total servidas no ano corrente</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+          <div class="stat-value" id="dashboard-desperdicio">0</div>
+          <div class="stat-label">Desperdício total (pratos)</div>
+          <div class="stat-note" id="dashboard-desperdicio-note">Produzidas e não servidas</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+          <div class="stat-value" id="dashboard-capacidade">0%</div>
+          <div class="stat-label">Capacidade instalada utilizada</div>
+          <div class="stat-note" id="dashboard-capacidade-note">Média de servidas / capacidade máxima</div>
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
         <div class="section-card">
@@ -179,6 +217,40 @@
           <div class="section-body">
             <canvas id="chart-doacoes" height="120" aria-label="Gráfico de doações" role="img"></canvas>
           </div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+        <div class="section-card">
+          <div class="section-header"><div class="section-title">Evolução de custos e receita (por mês)</div></div>
+          <div class="section-body">
+            <canvas id="chart-financeiro" height="140" aria-label="Gráfico de evolução financeira" role="img"></canvas>
+          </div>
+        </div>
+        <div class="section-card">
+          <div class="section-header"><div class="section-title">Cobertura de estoque por insumo crítico (dias)</div></div>
+          <div class="section-body">
+            <canvas id="chart-cobertura-insumos" height="140" aria-label="Cobertura por insumo" role="img"></canvas>
+          </div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+        <div class="section-card">
+          <div class="section-header"><div class="section-title">Demanda por dia da semana (média servidas)</div></div>
+          <div class="section-body">
+            <canvas id="chart-dia-semana" height="140" aria-label="Demanda por dia da semana" role="img"></canvas>
+          </div>
+        </div>
+        <div class="section-card">
+          <div class="section-header"><div class="section-title">Composição das fontes de insumos (kg)</div></div>
+          <div class="section-body" style="display:flex;align-items:center;justify-content:center;">
+            <canvas id="chart-fontes" height="160" style="max-width:230px" aria-label="Composição das fontes" role="img"></canvas>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:16px">
+        <div class="section-card">
+          <div class="section-header"><div class="section-title">Recomendações de Compras</div></div>
+          <div class="section-body" id="dashboard-compras-recomendadas">Carregando recomendações...</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
@@ -214,30 +286,16 @@
       </div>
       <div style="margin-top:16px">
         <div class="section-card">
-          <div class="section-header"><div class="section-title">Simulador financeiro (premissas)</div></div>
-          <div class="section-body">
-            <div class="form-row cols3">
-              <div>
-                <label class="form-label">Pratos por dia</label>
-                <input id="sim-pratos-dia" class="form-input" type="number" min="1" step="1" value="267">
-              </div>
-              <div>
-                <label class="form-label">Preço por prato (R$)</label>
-                <input id="sim-preco-prato" class="form-input" type="number" min="0" step="0.01" value="1.00">
-              </div>
-              <div>
-                <label class="form-label">Custo fixo mensal (R$)</label>
-                <input id="sim-custo-fixo" class="form-input" type="number" min="0" step="100" value="38000">
-              </div>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <button class="btn blue" onclick="salvarPremissasFinanceiras()">Salvar premissas</button>
-              <button class="btn outline" onclick="carregarCenarioSimulado8000()">Carregar cenário simulado (8.000/mês)</button>
-            </div>
-            <div class="alert info" style="margin-top:12px"><span>ℹ</span> As premissas salvas recalculam automaticamente custo total, receita e aporte da prefeitura.</div>
-          </div>
+          <div class="section-header"><div class="section-title">Concentração de fornecedores</div><div style="font-size:12px;color:var(--gray-400)">Risco: um único fornecedor ≥ 50% = alto</div></div>
+          <table>
+            <thead><tr><th>Fornecedor</th><th>Valor total</th><th>% do gasto</th><th>Risco</th></tr></thead>
+            <tbody id="dashboard-fornecedores-body">
+              <tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:18px">Carregando...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
+      
     </div>
 
     <!-- ESTOQUE -->
@@ -277,9 +335,9 @@
         <button class="btn blue" onclick="openDoacaoModal()">+ Nova doação</button>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
-        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Doadores cadastrados</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">23</div></div>
-        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Doações este mês</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">8</div></div>
-        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Volume recebido (mês)</div><div style="font-size:22px;font-weight:700;color:var(--green-600);margin-top:4px">320,5 kg</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Doadores cadastrados</div><div id="doacoes-doadores-val" style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">0</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Doações este mês</div><div id="doacoes-count-val" style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">0</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Volume recebido (mês)</div><div id="doacoes-volume-val" style="font-size:22px;font-weight:700;color:var(--green-600);margin-top:4px">0 kg</div></div>
       </div>
       <div class="section-card">
         <div class="section-header"><div class="section-title">Histórico de Doações</div></div>
@@ -297,9 +355,9 @@
         <button class="btn blue" onclick="openModal('modal-compra')">+ Nova compra</button>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
-        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Fornecedores cadastrados</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">11</div></div>
-        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Compras este mês</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">5</div></div>
-        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Valor total (mês)</div><div style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">R$ 6.840</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Fornecedores cadastrados</div><div id="compras-fornecedores-val" style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">—</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Compras este mês</div><div id="compras-mes-count-val" style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">—</div></div>
+        <div style="background:#fff;border-radius:10px;padding:14px 16px;border:1px solid var(--gray-100)"><div style="font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.4px">Valor total (mês)</div><div id="compras-total-mes-val" style="font-size:22px;font-weight:700;color:var(--blue-900);margin-top:4px">—</div></div>
       </div>
       <div class="section-card">
         <div class="section-header"><div class="section-title">Histórico de Compras</div></div>
@@ -370,26 +428,7 @@
       </div>
     </div>
 
-    <!-- USUÁRIOS -->
-    <div class="page" id="page-usuarios">
-      <div class="page-header">
-        <div><h1>Gerenciar Usuários</h1><p>Apenas administradores têm acesso a esta tela</p></div>
-        <button class="btn blue" onclick="openModal('modal-usuario')">+ Novo usuário</button>
-      </div>
-      <div class="section-card">
-        <div class="section-header"><div class="section-title">Usuários cadastrados</div></div>
-        <table>
-          <thead><tr><th>ID</th><th>Nome</th><th>Login</th><th>Perfil</th><th>Status</th><th>Ações</th></tr></thead>
-          <tbody>
-            <tr><td>1</td><td>Ana Gestora</td><td>admin</td><td><span class="badge blue">Administrador</span></td><td><span class="badge ok">Ativo</span></td><td><button class="btn outline btn-sm">Editar</button></td></tr>
-            <tr><td>2</td><td>Bruno Gestor</td><td>gestor</td><td><span class="badge blue">Gestor</span></td><td><span class="badge ok">Ativo</span></td><td><button class="btn outline btn-sm">Editar</button></td></tr>
-            <tr><td>3</td><td>Carlos Estoque</td><td>estoque</td><td><span class="badge blue">Estoque</span></td><td><span class="badge ok">Ativo</span></td><td><button class="btn outline btn-sm">Editar</button></td></tr>
-            <tr><td>4</td><td>Diana Doações</td><td>doacoes</td><td><span class="badge blue">Doações</span></td><td><span class="badge ok">Ativo</span></td><td><button class="btn outline btn-sm">Editar</button></td></tr>
-            <tr><td>5</td><td>Eduardo Produção</td><td>producao</td><td><span class="badge blue">Produção</span></td><td><span class="badge ok">Ativo</span></td><td><button class="btn outline btn-sm">Editar</button></td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <!-- Tela de usuários removida: sistema restrito ao administrador -->
 
   </div><!-- /content -->
 </div><!-- /main -->
@@ -408,6 +447,21 @@
       <div><label class="form-label">Quantidade inicial</label><input class="form-input" type="number" placeholder="0" value="50"></div>
       <div><label class="form-label">Validade</label><input class="form-input" type="date"></div>
     </div>
+    <hr>
+    <div style="margin-top:8px;font-weight:600">Movimentação rápida (aplica quando estiver editando)</div>
+    <div class="form-row cols2" style="margin-top:8px">
+      <div><label class="form-label">Tipo</label><select class="form-select" id="alim-mov-tipo"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div>
+      <div><label class="form-label">Quantidade</label><input class="form-input" type="number" id="alim-mov-qty" value="0" min="0"></div>
+    </div>
+    <div class="form-row cols3">
+      <div><label class="form-label">Data</label><input class="form-input" type="date" id="alim-mov-data"></div>
+      <div><label class="form-label">Validade (obrigatório em entradas)</label><input class="form-input" type="date" id="alim-mov-validade"></div>
+      <div><label class="form-label">Observação</label><input class="form-input" id="alim-mov-obs" placeholder="Ex.: Entrada do fornecedor"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn outline" onclick="applyAlimentoMovimentacao()">Aplicar movimentação</button>
+      <div style="font-size:12px;color:var(--gray-400);align-self:center">Preencha os campos acima e clique em aplicar para registrar entrada/saída para o item editado.</div>
+    </div>
     <div class="modal-footer">
       <button class="btn outline" onclick="closeModal('modal-alimento')">Cancelar</button>
       <button class="btn blue" onclick="saveAlimento()">Salvar alimento</button>
@@ -417,20 +471,23 @@
 
 <div class="modal-overlay" id="modal-movimentacao">
   <div class="modal">
-    <h2>+ Registrar movimentação de estoque</h2>
+    <h2 id="mov-modal-title">+ Registrar movimentação de estoque</h2>
     <div class="form-row cols2">
-      <div><label class="form-label">Item</label><select class="form-select" id="mov-item"></select></div>
-      <div><label class="form-label">Tipo</label><select class="form-select" id="mov-tipo"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div>
+      <div id="mov-item-row"><label class="form-label">Item</label><select class="form-select" id="mov-item"></select><div id="mov-item-display" style="display:none;padding:8px 12px;background:var(--gray-50);border:1px solid var(--gray-100);border-radius:8px;font-weight:600;font-size:14px"></div></div>
+      <div id="mov-tipo-row"><label class="form-label">Tipo</label><select class="form-select" id="mov-tipo"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div>
     </div>
     <div class="form-row cols3">
-      <div><label class="form-label">Quantidade</label><input class="form-input" type="number" id="mov-qty" value="10" min="0"></div>
+      <div><label class="form-label">Quantidade</label><input class="form-input" type="number" id="mov-qty" value="10" min="0"><small id="mov-qty-hint" style="color:var(--gray-400);font-size:11px;margin-top:3px;display:block"></small></div>
       <div><label class="form-label">Unidade</label><select class="form-select" id="mov-unidade"><option>kg</option><option>L</option><option>un</option><option>cx</option></select></div>
       <div><label class="form-label">Data</label><input class="form-input" type="date" id="mov-data"></div>
     </div>
-    <div class="form-row">
+    <div class="form-row" id="mov-validade-row">
+      <div><label class="form-label">Validade (obrigatório em entradas)</label><input class="form-input" type="date" id="mov-validade"></div>
+    </div>
+    <div class="form-row" id="mov-obs-row">
       <div><label class="form-label">Motivo / Observação</label><input class="form-input" id="mov-obs" placeholder="Ex.: Consumo para produção"></div>
     </div>
-    <div class="alert info"><span>ℹ</span> As entradas aumentam o saldo e as saídas reduzem o saldo do item selecionado.</div>
+    <div class="alert info" id="mov-alert-info"><span>ℹ</span> As entradas aumentam o saldo e as saídas reduzem o saldo do item selecionado.</div>
     <div class="modal-footer">
       <button class="btn outline" onclick="closeModal('modal-movimentacao')">Cancelar</button>
       <button class="btn blue" onclick="saveMovimentacao()">Salvar movimentação</button>
@@ -442,13 +499,20 @@
   <div class="modal">
     <h2>+ Registrar Doação</h2>
     <div class="form-row cols2">
-      <div><label class="form-label">Doador</label><select class="form-select" id="sel-doador"><option>Supermercado Bom Preço</option><option>Igreja Evangélica Central</option><option>Conab / Governo</option><option>+ Novo doador</option></select></div>
-      <div><label class="form-label">Data da doação</label><input class="form-input" type="date" value="2026-05-18"></div>
+      <div>
+        <label class="form-label">Doador</label>
+        <select class="form-select" id="sel-doador" onchange="toggleNovoDoador(this)"></select>
+        <input class="form-input" type="text" id="inp-novo-doador" placeholder="Nome do novo doador" style="display:none;margin-top:6px">
+      </div>
+      <div><label class="form-label">Data da doação</label><input class="form-input" type="date" id="doacao-data"></div>
     </div>
     <div class="form-row cols3">
-      <div><label class="form-label">Alimento doado</label><select class="form-select"><option>Arroz</option><option>Feijão Carioca</option><option>Óleo de Soja</option><option>Macarrão</option></select></div>
-      <div><label class="form-label">Quantidade</label><input class="form-input" type="number" placeholder="0" value="45"></div>
-      <div><label class="form-label">Unidade</label><select class="form-select"><option>kg</option><option>L</option><option>un</option></select></div>
+      <div><label class="form-label">Alimento doado</label><select class="form-select" id="sel-alimento-doacao"></select></div>
+      <div><label class="form-label">Quantidade</label><input class="form-input" type="number" id="doacao-qty" placeholder="0" value=""></div>
+      <div><label class="form-label">Unidade</label><select class="form-select" id="sel-unidade-doacao"><option>kg</option><option>L</option><option>un</option></select></div>
+    </div>
+    <div class="form-row">
+      <div><label class="form-label">Validade (obrigatório)</label><input class="form-input" type="date" id="doacao-validade"></div>
     </div>
     <div class="alert info"><span>ℹ</span> O estoque será atualizado automaticamente ao salvar.</div>
     <div class="modal-footer">
@@ -462,13 +526,20 @@
   <div class="modal">
     <h2>+ Registrar Compra</h2>
     <div class="form-row cols2">
-      <div><label class="form-label">Fornecedor</label><select class="form-select"><option>Alimentos SA</option><option>Distribuidora Norte</option><option>Cerealista Alagoana</option></select></div>
-      <div><label class="form-label">Data da compra</label><input class="form-input" type="date" value="2026-05-18"></div>
+      <div>
+        <label class="form-label">Fornecedor</label>
+        <select class="form-select" id="sel-fornecedor-compra" onchange="toggleNovoFornecedor(this)"></select>
+        <input class="form-input" type="text" id="inp-novo-fornecedor" placeholder="Nome do novo fornecedor" style="display:none;margin-top:6px">
+      </div>
+      <div><label class="form-label">Data da compra</label><input class="form-input" type="date" id="compra-data"></div>
     </div>
     <div class="form-row cols3">
-      <div><label class="form-label">Produto</label><select class="form-select"><option>Arroz</option><option>Feijão</option><option>Óleo</option><option>Frango</option></select></div>
-      <div><label class="form-label">Quantidade</label><input class="form-input" type="number" value="100"></div>
-      <div><label class="form-label">Valor unitário (R$)</label><input class="form-input" type="number" value="4.50" step="0.01"></div>
+      <div><label class="form-label">Produto</label><select class="form-select" id="sel-produto-compra"></select></div>
+      <div><label class="form-label">Quantidade</label><input class="form-input" type="number" id="compra-qty" value=""></div>
+      <div><label class="form-label">Valor unitário (R$)</label><input class="form-input" type="number" id="compra-val-unit" value="" step="0.01"></div>
+    </div>
+    <div class="form-row">
+      <div><label class="form-label">Validade (obrigatório)</label><input class="form-input" type="date" id="compra-validade"></div>
     </div>
     <div class="alert info"><span>ℹ</span> O estoque será atualizado automaticamente ao salvar a compra.</div>
     <div class="modal-footer">
@@ -498,23 +569,7 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-usuario">
-  <div class="modal">
-    <h2>+ Cadastrar Usuário</h2>
-    <div class="form-row cols2">
-      <div><label class="form-label">Nome completo</label><input class="form-input" placeholder="Nome do colaborador"></div>
-      <div><label class="form-label">Login</label><input class="form-input" placeholder="login.usuario"></div>
-    </div>
-    <div class="form-row cols2">
-      <div><label class="form-label">Senha</label><input class="form-input" type="password" placeholder="Senha inicial"></div>
-      <div><label class="form-label">Perfil de acesso</label><select class="form-select"><option>administrador</option><option>gestor</option><option>estoque</option><option>doacoes</option><option>producao</option></select></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn outline" onclick="closeModal('modal-usuario')">Cancelar</button>
-      <button class="btn blue" onclick="saveUsuario()">Cadastrar usuário</button>
-    </div>
-  </div>
-</div>
+<!-- Modal de usuário removido (acesso restrito ao administrador) -->
 
 <div id="toast"></div>
 

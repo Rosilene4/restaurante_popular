@@ -948,8 +948,7 @@ function calcularEstoquePorPeriodo(periodo = getDashboardPeriodo()){
 }
 
 function aplicarFiltroDashboard(){
-  renderTables();
-  renderCharts();
+  refreshAppViews();
   showToast('Filtro de período aplicado.');
 }
 
@@ -990,7 +989,9 @@ function getDashboardMetrics(){
   const refeicoesPeriodo = filtrarPorPeriodo(REFEICOES_DATA, 'data', periodo);
   const totalProduzido = refeicoesPeriodo.reduce((sum,item)=> sum + (Number(item.prod)||0),0);
   const totalServido = refeicoesPeriodo.reduce((sum,item)=> sum + (Number(item.serv)||0),0);
+  const diasRefeicao = new Set(refeicoesPeriodo.map(r => r.data)).size;
   const performance = totalProduzido ? Math.round((totalServido / totalProduzido) * 100) : 0;
+  const mediaServidasDia = diasRefeicao ? Number((totalServido / diasRefeicao).toFixed(1)) : 0;
 
   return {
     totalItems: estoquePeriodo.totalItems,
@@ -1000,6 +1001,8 @@ function getDashboardMetrics(){
     doacoesMes,
     totalProduzido,
     totalServido,
+    diasRefeicao,
+    mediaServidasDia,
     performance,
     doadoresRegistrados,
     doacoesCountMes,
@@ -1066,7 +1069,11 @@ function calcularGastoRealCompras(periodo = getDashboardPeriodo()){
 function calcularComposicaoFontes(periodo = getDashboardPeriodo()){
   const doado = filtrarPorPeriodo(DOACOES_DATA, 'data', periodo).reduce((s,d) => s + parseQty(d.qty), 0);
   const comprado = filtrarPorPeriodo(COMPRAS_DATA, 'data', periodo).reduce((s,c) => {
-    const qt = Number(c._meta?.qty || 0);
+    let qt = Number(c._meta?.qty || 0);
+    if(!qt && c._meta?.movId){
+      const mov = MOVIMENTACOES_DATA.find(m => m.id === c._meta.movId && m.tipo === 'entrada');
+      if(mov) qt = Number(mov.quantidade || 0);
+    }
     return s + (Number.isFinite(qt) ? qt : 0);
   }, 0);
   return { doado: Number(doado.toFixed(1)), comprado: Number(comprado.toFixed(1)) };
@@ -1355,10 +1362,10 @@ function renderDashboardSummary(){
   const aporteNoteEl = document.getElementById('dashboard-aporte-note');
   if(custoMesEl) custoMesEl.textContent = 'R$ ' + custos.custoTotalMes.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
   if(custoDiaEl) custoDiaEl.textContent = 'R$ ' + custos.custoTotalDia.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-  if(custoMesNoteEl) custoMesNoteEl.textContent = 'Receita mensal (R$ 1/prato): R$ ' + custos.receitaMes.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-  if(custoDiaNoteEl) custoDiaNoteEl.textContent = 'Receita diária (R$ 1/prato): R$ ' + custos.receitaDia.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if(custoMesNoteEl) custoMesNoteEl.textContent = `Estimativa baseada em consumo e preços de insumos.`;
+  if(custoDiaNoteEl) custoDiaNoteEl.textContent = `Receita estimada: R$ ${custos.receitaDia.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})} por dia.`;
   if(aporteMesEl) aporteMesEl.textContent = 'R$ ' + custos.aporteMes.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-  if(aporteNoteEl) aporteNoteEl.textContent = 'Necessidade diária: R$ ' + custos.aporteDia.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  if(aporteNoteEl) aporteNoteEl.textContent = `Gap estimado entre custo e receita.`;
 
   const itensEl = document.getElementById('dashboard-itens-estoque');
   const alertaEl = document.getElementById('dashboard-alerta-estoque');
@@ -1386,7 +1393,7 @@ function renderDashboardSummary(){
   if(doacoesEl) doacoesEl.textContent = `${metrics.doacoesMes.toFixed(1).replace(/\.0$/, '')} kg`;
   if(doadoresEl) doadoresEl.textContent = String(metrics.doadoresRegistrados || 0);
   if(doacoesCountEl) doacoesCountEl.textContent = String(metrics.doacoesCountMes || 0);
-  if(doacoesNoteEl) doacoesNoteEl.textContent = STARTUP_MODE ? 'Modo inicial — sem histórico de doações' : (metrics.doacoesMes > 0 ? 'Volume recebido no mês' : 'Sem registros recentes');
+  if(doacoesNoteEl) doacoesNoteEl.textContent = STARTUP_MODE ? 'Modo inicial — sem histórico de doações' : (metrics.doacoesMes > 0 ? 'Volume recebido no período' : 'Sem registros recentes');
   if(producaoEl) producaoEl.textContent = metrics.totalProduzido.toLocaleString('pt-BR');
   if(producaoNoteEl) producaoNoteEl.textContent = STARTUP_MODE ? 'Modo inicial — sem histórico de produção' : (metrics.totalProduzido > 0 ? 'Total acumulado do período' : 'Sem produção registrada');
   if(servidasEl) servidasEl.textContent = metrics.totalServido.toLocaleString('pt-BR');
@@ -1397,11 +1404,11 @@ function renderDashboardSummary(){
   const gastoEl = document.getElementById('dashboard-gasto-compras');
   const gastoNoteEl = document.getElementById('dashboard-gasto-compras-note');
   if(gastoEl) gastoEl.textContent = 'R$ ' + gastoRealCompras.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-  if(gastoNoteEl) gastoNoteEl.textContent = `${COMPRAS_DATA.length} nota(s) de compra registrada(s)`;
+  if(gastoNoteEl) gastoNoteEl.textContent = `Baseado nas compras registradas no período.`;
 
   const capacidade = PREMISSAS_FINANCEIRAS.capacidadeInstalada || 500;
-  const diasComRegistro = REFEICOES_DATA.length;
-  const mediaServidas = diasComRegistro ? Math.round(metrics.totalServido / diasComRegistro) : 0;
+  const diasComRegistro = metrics.diasRefeicao || 1;
+  const mediaServidas = metrics.mediaServidasDia || 0;
   const pctCapacidade = capacidade > 0 ? Math.min(100, (mediaServidas / capacidade) * 100) : 0;
   const capEl = document.getElementById('dashboard-capacidade');
   const capNoteEl = document.getElementById('dashboard-capacidade-note');
@@ -1415,7 +1422,7 @@ function renderDashboardSummary(){
   const beneficioEl = document.getElementById('dashboard-beneficio-social');
   const beneficioNoteEl = document.getElementById('dashboard-beneficio-note');
   if(beneficioEl) beneficioEl.textContent = 'R$ ' + beneficioTotalMes.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-  if(beneficioNoteEl) beneficioNoteEl.textContent = `R$ ${beneficioPorPrato.toFixed(2)} economizados por refeição`;
+  if(beneficioNoteEl) beneficioNoteEl.textContent = `Estimativa com base em preço de mercado e refeições servidas.`;
 
   // Beneficiários únicos: aproximação por visitas médias por pessoa por período
   const visitasPorPessoa = 1; // cada refeição = 1 beneficiário único (conservador)
@@ -1423,7 +1430,7 @@ function renderDashboardSummary(){
   const benefEl = document.getElementById('dashboard-beneficiarios');
   const benefNoteEl = document.getElementById('dashboard-beneficiarios-note');
   if(benefEl) benefEl.textContent = beneficiarios.toLocaleString('pt-BR');
-  if(benefNoteEl) benefNoteEl.textContent = 'Total de atendimentos no período';
+  if(benefNoteEl) benefNoteEl.textContent = 'Estimativa: 1 refeição = 1 beneficiário.';
 
   // Refeições no ano corrente
   const anoAtual = getSystemDate().getFullYear();
@@ -1527,6 +1534,9 @@ function refreshAppViews(){
   renderTables();
   renderCharts();
   renderDashboardSummary();
+  renderDoacoesSummary();
+  renderResumoRefeicoes();
+  renderMovimentacoes();
   renderRecomendacoesCompras();
   renderConcentracaoFornecedores();
   gerarRelatorio();
@@ -2123,59 +2133,9 @@ function deleteDoacao(id){
   const idx = DOACOES_DATA.findIndex(d => Number(d.id) === Number(id));
   if(idx === -1){ showToast('Doação não encontrada.'); return; }
   const doac = DOACOES_DATA[idx];
-  // parse qty (e.g., '45 kg')
-  const qtyRaw = String(doac.qty || '0').trim();
-  const m = qtyRaw.match(/([\d\.\,]+)\s*(\w+)?/);
-  let qty = 0; let unidade = 'kg';
-  if(m){ qty = parseFloat(m[1].replace(',','.')) || 0; if(m[2]) unidade = m[2]; }
-
-  const itensStr = String(doac.itens || '').trim();
-  const itens = itensStr.includes(',') ? itensStr.split(',').map(s=>s.trim()).filter(Boolean) : [itensStr];
-
-  // If we have metadata, prefer it
-  const meta = doac._meta || {};
   try{
-    if(meta.affectedNome){
-      // single affected name
-      const nome = meta.affectedNome;
-      const est = ESTOQUE_DATA.find(it => normalizarTexto(it.nome) === normalizarTexto(nome));
-      if(est){
-        est.qty = Math.max(0, (Number(est.qty) || 0) - qty);
-        atualizarStatusEstoque(est);
-        // if previous qty was 0 and now 0, remove item entirely
-        if(Number(meta.prevQty || 0) === 0 && (Number(est.qty) || 0) === 0){
-          const remIdx = ESTOQUE_DATA.findIndex(x => x === est);
-          if(remIdx !== -1) ESTOQUE_DATA.splice(remIdx,1);
-        }
-      }
-    }else{
-      // distribute qty evenly across matched items
-      const matches = itens.map(nome => encontrarItemEstoquePorNome(nome)).filter(Boolean);
-      if(matches.length){
-        const per = qty / matches.length;
-        matches.forEach(est => { est.qty = Math.max(0, (Number(est.qty)||0) - per); atualizarStatusEstoque(est); });
-      }else{
-        // fallback: try single name match
-        const singleMatch = encontrarItemEstoquePorNome(itens[0]);
-        if(singleMatch){ singleMatch.qty = Math.max(0, (Number(singleMatch.qty)||0) - qty); atualizarStatusEstoque(singleMatch); }
-      }
-    }
+    reverterEntradaRegistro(doac, 'doacao');
   }catch(e){ console.warn('Erro ao reverter estoque para doação', e); }
-
-  // remove movimentacao relacionada (procura entrada com mesmo item e quantidade e obs contendo 'Doação')
-  for(let i = MOVIMENTACOES_DATA.length - 1; i >= 0; i--){
-    const mv = MOVIMENTACOES_DATA[i];
-    if(mv.tipo === 'entrada' && Number(mv.quantidade) === Number(qty) && String(mv.obs||'').toLowerCase().includes('doa')){
-      MOVIMENTACOES_DATA.splice(i,1);
-      break;
-    }
-    // fallback: match by item name and tipo entrada
-    if(mv.tipo === 'entrada' && normalizarTexto(mv.item) === normalizarTexto(doac.itens)){
-      MOVIMENTACOES_DATA.splice(i,1); break;
-    }
-  }
-
-  // remove doacao
   DOACOES_DATA.splice(idx,1);
   saveData(); refreshAppViews(); showToast('Doação removida e estoque revertido (quando possível).');
 }
@@ -3277,7 +3237,9 @@ function saveCompra(){
   }
   const dataInput = document.getElementById('compra-data')?.value || '';
   const data = converterDataInputParaBrasil(dataInput);
-  const prod = document.getElementById('sel-produto-compra')?.value || 'Produto';
+  const prodRaw = document.getElementById('sel-produto-compra')?.value || 'Produto';
+  const prodMatch = encontrarItemEstoquePorNome(prodRaw);
+  const prod = prodMatch ? prodMatch.nome : prodRaw;
   const qty = parseFloat(document.getElementById('compra-qty')?.value) || 0;
   const valUnitario = parseFloat(document.getElementById('compra-val-unit')?.value) || 0;
   const validadeRaw = document.getElementById('compra-validade')?.value || '';

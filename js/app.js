@@ -174,6 +174,101 @@ function converterDataParaTimestamp(valor){
   return Number.isNaN(data.getTime()) ? null : data.getTime();
 }
 
+function converterDataInputParaBrasil(valor){
+  if(!valor) return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(valor)){
+    const [ano, mes, dia] = valor.split('-');
+    return `${dia}/${mes}/${ano}`;
+  }
+  return formatarDataBrasil(valor);
+}
+
+function converterDataBrParaInput(valor){
+  if(!valor) return '';
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(valor)){
+    const [dia, mes, ano] = valor.split('/');
+    return `${ano}-${mes}-${dia}`;
+  }
+  if(/^\d{4}-\d{2}-\d{2}$/.test(valor)){
+    return valor;
+  }
+  const ts = converterDataParaTimestamp(valor);
+  if(ts === null) return '';
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function parseQuantidadeUnidade(valor){
+  const match = String(valor || '').trim().match(/([\d\.,]+)\s*(\w+)?/);
+  if(!match) return { qty: 0, unidade: 'kg' };
+  const qty = parseFloat(match[1].replace(/\./g, '').replace(',', '.')) || 0;
+  const unidade = match[2] || 'kg';
+  return { qty, unidade };
+}
+
+function removerMovimentacaoPorIdOuFallback(id, tipo, itemNome, quantidade, observacao){
+  let removed = false;
+  for(let i = MOVIMENTACOES_DATA.length - 1; i >= 0; i--){
+    const mv = MOVIMENTACOES_DATA[i];
+    if(id && mv.id === id){ MOVIMENTACOES_DATA.splice(i, 1); removed = true; break; }
+    if(!removed && mv.tipo === tipo && normalizarTexto(mv.item) === normalizarTexto(itemNome) && Number(mv.quantidade) === Number(quantidade)){
+      if(!observacao || String(mv.obs || '').toLowerCase().includes(String(observacao || '').toLowerCase())){
+        MOVIMENTACOES_DATA.splice(i, 1);
+        removed = true;
+        break;
+      }
+    }
+  }
+  return removed;
+}
+
+function reverterEntradaRegistro(registro, categoria){
+  if(!registro) return;
+  const itemNome = registro._meta?.affectedNome || registro.itens || registro.prod || '';
+  const quantidade = Number(registro._meta?.qty || parseQuantidadeUnidade(registro.qty || '').qty) || 0;
+  if(!itemNome || quantidade <= 0) return;
+  ajustarEstoqueParaRegistro(itemNome, quantidade, 'entrada');
+  removerMovimentacaoPorIdOuFallback(registro._meta?.movId, 'entrada', itemNome, quantidade, categoria === 'doacao' ? 'doação' : 'compra');
+}
+
+function reverterRefeicaoRegistro(registro){
+  if(!registro || !registro._meta) return;
+  const meta = registro._meta;
+  if(Array.isArray(meta.consumo)){
+    meta.consumo.forEach(consumo => {
+      const item = ESTOQUE_DATA.find(it => normalizarTexto(it.nome) === normalizarTexto(consumo.item));
+      if(item){
+        item.qty = Math.max(0, Number(item.qty || 0) + Number(consumo.quantidade || 0));
+        atualizarStatusEstoque(item);
+      }
+    });
+  }
+  if(Array.isArray(meta.movIds)){
+    meta.movIds.forEach(mid => removerMovimentacaoPorIdOuFallback(mid, 'saida', registro._meta?.item || '', Number(registro._meta?.qty || 0), 'Consumo para produção'));
+  } else {
+    // fallback: remove any matching saída de consumo na mesma data
+    const data = registro.data;
+    for(let i = MOVIMENTACOES_DATA.length - 1; i >= 0; i--){
+      const mv = MOVIMENTACOES_DATA[i];
+      if(mv.tipo === 'saida' && String(mv.data || '') === String(data) && String(mv.obs || '').toLowerCase().includes('consumo para produção')){
+        MOVIMENTACOES_DATA.splice(i, 1);
+      }
+    }
+  }
+}
+
+function ajustarEstoqueParaRegistro(nome, quantidade, operacao){
+  const item = ESTOQUE_DATA.find(it => normalizarTexto(it.nome) === normalizarTexto(nome));
+  if(!item) return;
+  const atual = Number(item.qty) || 0;
+  if(operacao === 'entrada'){
+    item.qty = Math.max(0, atual - Number(quantidade) || 0);
+  } else if(operacao === 'saida'){
+    item.qty = atual + Number(quantidade) || 0;
+  }
+  atualizarStatusEstoque(item);
+}
+
 function ordenarRefeicoesPorData(lista){
   return [...lista].sort((a, b) => {
     const dataA = converterDataParaTimestamp(a?.data);
@@ -295,7 +390,7 @@ function topUpEstoqueParaDias(dias = 45, validadeDias = 180){
       }
     });
 
-    saveData(); renderTables(); showToast(`Estoque ajustado para ${dias} dias.`);
+    saveData(); refreshAppViews(); showToast(`Estoque ajustado para ${dias} dias.`);
   }catch(e){ console.warn('Falha ao ajustar estoque para dias', e); }
 }
 
@@ -306,7 +401,7 @@ function setStartupMode(enable = true){
     REFEICOES_DATA.splice(0, REFEICOES_DATA.length);
     DOACOES_DATA.splice(0, DOACOES_DATA.length);
   }
-  saveData(); renderTables(); renderCharts();
+  saveData(); refreshAppViews();
 }
 
 function carregarPremissasFinanceiras(){
@@ -757,8 +852,117 @@ function goPage(page){
   };
 
   document.getElementById('topbar-title').textContent = titles[page] || page;
+  updateTopbarSearchUI(page);
   renderTables();
   renderCharts();
+}
+
+function updateTopbarSearchUI(page){
+  const searchEl = document.getElementById('topbar-search');
+  if(!searchEl) return;
+
+  const placeholders = {
+    dashboard: 'Pesquisar informações...',
+    estoque: 'Pesquisar alimento...',
+    doacoes: 'Pesquisar doador ou alimento...',
+    compras: 'Pesquisar fornecedor ou produto...',
+    refeicoes: 'Filtro de data',
+    relatorios: ''
+  };
+
+  if(page === 'relatorios'){
+    searchEl.style.display = 'none';
+    const dashFilter = document.getElementById('topbar-dashboard-filter');
+    if(dashFilter) dashFilter.style.display = 'none';
+    searchEl.value = '';
+  } else if(page === 'dashboard'){
+    searchEl.style.display = 'none';
+    const dashFilter = document.getElementById('topbar-dashboard-filter');
+    if(dashFilter) dashFilter.style.display = 'flex';
+  } else {
+    searchEl.style.display = '';
+    const dashFilter = document.getElementById('topbar-dashboard-filter');
+    if(dashFilter) dashFilter.style.display = 'none';
+    searchEl.placeholder = placeholders[page] || 'Pesquisar...';
+  }
+}
+
+function getDashboardPeriodo(){
+  const inicioInput = document.getElementById('dashboard-data-inicio');
+  const fimInput = document.getElementById('dashboard-data-fim');
+  const inicio = inicioInput && inicioInput.value ? converterDataParaTimestamp(inicioInput.value) : -Infinity;
+  const fim = fimInput && fimInput.value ? converterDataParaTimestamp(fimInput.value) : Infinity;
+  return { inicio, fim };
+}
+
+function filtrarPorPeriodo(lista, campo = 'data', periodo = getDashboardPeriodo()){
+  const { inicio, fim } = periodo;
+  if(inicio === -Infinity && fim === Infinity) return [...lista];
+  return lista.filter(item => {
+    const ts = converterDataParaTimestamp(item[campo]);
+    return ts !== null && ts >= inicio && ts <= fim;
+  });
+}
+
+function calcularEstoquePorPeriodo(periodo = getDashboardPeriodo()){
+  const { inicio, fim } = periodo;
+  const current = ESTOQUE_DATA.reduce((acc,item) => {
+    acc[normalizarTexto(item.nome)] = {
+      nome: item.nome,
+      cat: item.cat,
+      un: item.un,
+      val: item.val,
+      status: item.status || 'ok',
+      qty: Number(item.qty) || 0
+    };
+    return acc;
+  }, {});
+
+  MOVIMENTACOES_DATA.forEach(m => {
+    const ts = converterDataParaTimestamp(m.data);
+    if(ts === null || ts <= fim) return;
+    const key = normalizarTexto(m.item || '');
+    const qty = Number(m.quantidade) || 0;
+    if(!current[key]){
+      current[key] = { nome: m.item || 'Item desconhecido', cat: '—', un: m.unidade || 'kg', val: '', status: 'ok', qty: 0 };
+    }
+    current[key].qty += m.tipo === 'entrada' ? -qty : qty;
+  });
+
+  let itensVencendo = 0;
+  let itensVencidos = 0;
+  const items = Object.values(current);
+  const totalQty = items.reduce((sum,item) => {
+    const qty = Number(item.qty) || 0;
+    if(qty <= 0) return sum;
+    const validadeTs = converterDataParaTimestamp(item.val);
+    if(validadeTs !== null){
+      const diff = validadeTs - fim;
+      if(diff < 0) itensVencidos++;
+      else if(diff < 15 * 24 * 60 * 60 * 1000) itensVencendo++;
+    }
+    return sum + qty;
+  }, 0);
+  const totalItems = items.filter(item => Number(item.qty) > 0).length;
+  return { items, totalItems, totalQty, itensVencendo, itensVencidos };
+}
+
+function aplicarFiltroDashboard(){
+  renderTables();
+  renderCharts();
+  showToast('Filtro de período aplicado.');
+}
+
+function initializeDashboardFilter(){
+  const inicioInput = document.getElementById('dashboard-data-inicio');
+  const fimInput = document.getElementById('dashboard-data-fim');
+  if(!inicioInput || !fimInput) return;
+  const hoje = getSystemDate();
+  const ano = hoje.getFullYear();
+  const mes = String(hoje.getMonth()+1).padStart(2,'0');
+  const dia = String(hoje.getDate()).padStart(2,'0');
+  fimInput.value = `${ano}-${mes}-${dia}`;
+  inicioInput.value = `${ano}-${mes}-01`;
 }
 
 function parseQty(value){
@@ -767,73 +971,40 @@ function parseQty(value){
 }
 
 function getDashboardMetrics(){
-  const totalItems = ESTOQUE_DATA.length;
-  const totalStockQty = ESTOQUE_DATA.reduce((sum,item)=> sum + (Number(item.qty)||0),0);
-  const itensVencendo = ESTOQUE_DATA.filter(item=>item.status==='warn').length;
-  const itensVencidos = ESTOQUE_DATA.filter(item=>item.status==='danger').length;
-  // Prefer DOACOES_DATA if available, otherwise infer doações a partir de movimentações marcadas como doação
+  const periodo = getDashboardPeriodo();
+  const estoquePeriodo = calcularEstoquePorPeriodo(periodo);
+
+  const doacoesPeriodo = filtrarPorPeriodo(DOACOES_DATA, 'data', periodo);
   let doacoesMes = 0;
   try{
-    if(Array.isArray(DOACOES_DATA) && DOACOES_DATA.length){
-      doacoesMes = DOACOES_DATA.reduce((sum,item)=> sum + parseQty(item.qty),0);
-    }else{
-      doacoesMes = MOVIMENTACOES_DATA.reduce((sum,m)=>{
-        const obs = String(m.obs || '').toLowerCase();
-        if(m.tipo === 'entrada' && (/doa[cç]a|doacao|doaça|doação/.test(obs) || (m.origem && String(m.origem).toLowerCase().includes('doac')))){
-          return sum + (Number(m.quantidade) || 0);
-        }
-        return sum;
-      },0);
-    }
+    doacoesMes = doacoesPeriodo.reduce((sum,item)=> sum + parseQty(item.qty),0);
   }catch(e){ doacoesMes = 0; }
 
-  // Donors registered (unique doador names)
   let doadoresRegistrados = 0;
   try{
-    if(Array.isArray(DOACOES_DATA) && DOACOES_DATA.length){
-      const set = new Set(DOACOES_DATA.map(d => String(d.doador || '').trim()).filter(Boolean));
-      doadoresRegistrados = set.size;
-    }else{
-      // infer from MOVIMENTACOES_DATA obs/doador if present
-      const set = new Set();
-      MOVIMENTACOES_DATA.forEach(m => {
-        if(m.tipo === 'entrada' && String(m.obs || '').toLowerCase().includes('doa')){
-          const parts = String(m.obs || '').split(/[:,\-]/).map(s=>s.trim()).filter(Boolean);
-          if(parts.length) set.add(parts[0].slice(0,40));
-        }
-      });
-      doadoresRegistrados = set.size;
-    }
+    const set = new Set(doacoesPeriodo.map(d => String(d.doador || '').trim()).filter(Boolean));
+    doadoresRegistrados = set.size;
   }catch(e){ doadoresRegistrados = 0; }
 
-  // Donations this month: count of donation events for current month
-  function isSameMonthDate(str){
-    if(!str) return false;
-    // accept dd/mm/yyyy or yyyy-mm-dd
-    let d=null;
-    if(/^\d{2}\/\d{2}\/\d{4}$/.test(str)){
-      const [dd,mm,yy]=str.split('/').map(Number); d = new Date(yy, mm-1, dd);
-    }else if(/^\d{4}-\d{2}-\d{2}$/.test(str)){
-      const [yy,mm,dd]=str.split('-').map(Number); d = new Date(yy, mm-1, dd);
-    }else{ d = new Date(str); }
-    if(Number.isNaN(d.getTime())) return false;
-    const now = getSystemDate();
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-  }
-
-  let doacoesCountMes = 0;
-  try{
-    if(Array.isArray(DOACOES_DATA) && DOACOES_DATA.length){
-      doacoesCountMes = DOACOES_DATA.filter(d => isSameMonthDate(d.data)).length;
-    }else{
-      doacoesCountMes = MOVIMENTACOES_DATA.filter(m => m.tipo === 'entrada' && (String(m.obs||'').toLowerCase().includes('doa') || (m.origem && String(m.origem).toLowerCase().includes('doac'))) && isSameMonthDate(m.data)).length;
-    }
-  }catch(e){ doacoesCountMes = 0; }
-  const totalProduzido = REFEICOES_DATA.reduce((sum,item)=> sum + (Number(item.prod)||0),0);
-  const totalServido = REFEICOES_DATA.reduce((sum,item)=> sum + (Number(item.serv)||0),0);
+  const doacoesCountMes = doacoesPeriodo.length;
+  const refeicoesPeriodo = filtrarPorPeriodo(REFEICOES_DATA, 'data', periodo);
+  const totalProduzido = refeicoesPeriodo.reduce((sum,item)=> sum + (Number(item.prod)||0),0);
+  const totalServido = refeicoesPeriodo.reduce((sum,item)=> sum + (Number(item.serv)||0),0);
   const performance = totalProduzido ? Math.round((totalServido / totalProduzido) * 100) : 0;
 
-  return { totalItems, totalStockQty, itensVencendo, itensVencidos, doacoesMes, totalProduzido, totalServido, performance, doadoresRegistrados, doacoesCountMes };
+  return {
+    totalItems: estoquePeriodo.totalItems,
+    totalStockQty: estoquePeriodo.totalQty,
+    itensVencendo: estoquePeriodo.itensVencendo,
+    itensVencidos: estoquePeriodo.itensVencidos,
+    doacoesMes,
+    totalProduzido,
+    totalServido,
+    performance,
+    doadoresRegistrados,
+    doacoesCountMes,
+    periodo
+  };
 }
 
 // Estimate costs based on consumption assumptions and 500 plates/day
@@ -887,13 +1058,17 @@ function parseValorReal(str){
   return parseFloat(s) || 0;
 }
 
-function calcularGastoRealCompras(){
-  return COMPRAS_DATA.reduce((sum,c) => sum + parseValorReal(c.val), 0);
+function calcularGastoRealCompras(periodo = getDashboardPeriodo()){
+  const compras = filtrarPorPeriodo(COMPRAS_DATA, 'data', periodo);
+  return compras.reduce((sum,c) => sum + parseValorReal(c.val), 0);
 }
 
-function calcularComposicaoFontes(){
-  const doado = DOACOES_DATA.reduce((s,d) => s + parseQty(d.qty), 0);
+function calcularComposicaoFontes(periodo = getDashboardPeriodo()){
+  const doado = filtrarPorPeriodo(DOACOES_DATA, 'data', periodo).reduce((s,d) => s + parseQty(d.qty), 0);
   const comprado = MOVIMENTACOES_DATA.reduce((s,m) => {
+    const ts = converterDataParaTimestamp(m.data);
+    const { inicio, fim } = periodo;
+    if(ts === null || ts < inicio || ts > fim) return s;
     if(m.tipo !== 'entrada') return s;
     const obs = normalizarTexto(m.obs || '');
     if(obs.includes('compra')) return s + (Number(m.quantidade) || 0);
@@ -902,11 +1077,11 @@ function calcularComposicaoFontes(){
   return { doado: Number(doado.toFixed(1)), comprado: Number(comprado.toFixed(1)) };
 }
 
-function calcularDemandaPorDia(){
+function calcularDemandaPorDia(periodo = getDashboardPeriodo()){
   const diasNome = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
   const acum = {};
   for(let i=0;i<7;i++) acum[i] = {sum:0,count:0};
-  REFEICOES_DATA.forEach(r => {
+  filtrarPorPeriodo(REFEICOES_DATA, 'data', periodo).forEach(r => {
     const ts = converterDataParaTimestamp(r.data);
     if(ts === null) return;
     const dow = new Date(ts).getDay();
@@ -919,10 +1094,11 @@ function calcularDemandaPorDia(){
   }));
 }
 
-function calcularCoberturaInsumosDetalhada(){
+function calcularCoberturaInsumosDetalhada(periodo = getDashboardPeriodo()){
+  const estoquePeriodo = calcularEstoquePorPeriodo(periodo).items || [];
   const consumo = PREMISSAS_FINANCEIRAS.consumoPorPrato;
   const pratosPorDia = PREMISSAS_FINANCEIRAS.pratosPorDia || 1;
-  return ESTOQUE_DATA
+  return estoquePeriodo
     .filter(item => consumo[item.nome])
     .map(item => {
       const consumoDia = (consumo[item.nome] || 0) * pratosPorDia;
@@ -932,9 +1108,9 @@ function calcularCoberturaInsumosDetalhada(){
     .sort((a,b) => a.dias - b.dias);
 }
 
-function calcularConcentracaoFornecedores(){
+function calcularConcentracaoFornecedores(periodo = getDashboardPeriodo()){
   const map = {};
-  COMPRAS_DATA.forEach(c => {
+  filtrarPorPeriodo(COMPRAS_DATA, 'data', periodo).forEach(c => {
     const forn = String(c.forn || 'Desconhecido').trim();
     if(!map[forn]) map[forn] = 0;
     map[forn] += parseValorReal(c.val);
@@ -945,9 +1121,9 @@ function calcularConcentracaoFornecedores(){
     .sort((a,b) => b.valor - a.valor);
 }
 
-function calcularEvolucaoFinanceiraMensal(){
+function calcularEvolucaoFinanceiraMensal(periodo = getDashboardPeriodo()){
   const meses = {};
-  COMPRAS_DATA.forEach(c => {
+  filtrarPorPeriodo(COMPRAS_DATA, 'data', periodo).forEach(c => {
     const mv = extrairMesAno(c.data);
     if(!mv) return;
     const key = `${mv.ano}-${String(mv.mes+1).padStart(2,'0')}`;
@@ -955,7 +1131,7 @@ function calcularEvolucaoFinanceiraMensal(){
     meses[key].gastoCompras += parseValorReal(c.val);
     if(!meses[key].label) meses[key].label = new Date(mv.ano,mv.mes,1).toLocaleDateString('pt-BR',{month:'short',year:'2-digit'});
   });
-  REFEICOES_DATA.forEach(r => {
+  filtrarPorPeriodo(REFEICOES_DATA, 'data', periodo).forEach(r => {
     const mv = extrairMesAno(r.data);
     if(!mv) return;
     const key = `${mv.ano}-${String(mv.mes+1).padStart(2,'0')}`;
@@ -1316,28 +1492,28 @@ function renderTables(){
         const sc=i.status==='ok'?'ok':i.status==='warn'?'warn':'danger';
         const sl=i.status==='ok'?'Dentro da validade':i.status==='warn'?'Atenção':'Vencido';
         const rowClass = i.status === 'warn' ? 'row-warn' : (i.status === 'danger' ? 'row-danger' : '');
-        return `<tr class="${rowClass}"><td>${i.id}</td><td><strong>${i.nome}</strong></td><td>${i.cat}</td><td>${i.qty}</td><td>${i.un}</td><td>${i.val || '—'}</td><td><span class="badge ${sc}">${sl}</span></td><td><div style="display:flex;gap:6px"><button class="btn outline btn-sm" onclick="abrirSaidaEstoque(${i.id})">Saída</button><button class="btn danger btn-sm" onclick="deleteItem(${i.id})">Excluir</button></div></td></tr>`;
+        return `<tr class="${rowClass}"><td>${i.id}</td><td><strong>${i.nome}</strong></td><td>${i.cat}</td><td>${i.qty}</td><td>${i.un}</td><td>${i.val || '—'}</td><td><span class="badge ${sc}">${sl}</span></td><td><div style="display:flex;gap:6px"><button class="btn outline btn-sm" onclick="openAlimentoEdit(${i.id})">Editar</button><button class="btn outline btn-sm" onclick="abrirSaidaEstoque(${i.id})">Saída</button><button class="btn danger btn-sm" onclick="deleteItem(${i.id})">Excluir</button></div></td></tr>`;
       }).join('');
     }
   }
   const td=document.getElementById('tabela-doacoes');
   if(td){
     td.innerHTML=DOACOES_DATA.map(d=>{
-      return `<tr><td>${d.id}</td><td>${d.doador}</td><td>${d.data}</td><td>${d.itens}</td><td>${d.qty}</td><td><div style="display:flex;gap:6px"><span class="badge ok">✓ Atualizado</span><button class="btn danger btn-sm" onclick="deleteDoacao(${d.id})">Excluir</button></div></td></tr>`;
+      return `<tr><td>${d.id}</td><td>${d.doador}</td><td>${d.data}</td><td>${d.itens}</td><td>${d.qty}</td><td><div style="display:flex;gap:6px"><span class="badge ok">✓ Atualizado</span><button class="btn outline btn-sm" onclick="openEditDoacao(${d.id})">Editar</button><button class="btn danger btn-sm" onclick="deleteDoacao(${d.id})">Excluir</button></div></td></tr>`;
     }).join('');
   }
   const tc=document.getElementById('tabela-compras');
   if(tc){
-    tc.innerHTML=COMPRAS_DATA.map(c=>`<tr><td>${c.id}</td><td>${c.forn}</td><td>${c.data}</td><td>${c.itens}</td><td>${c.val}</td><td><span class="badge ok">✓ Atualizado</span></td></tr>`).join('');
+    tc.innerHTML=COMPRAS_DATA.map(c=>`<tr><td>${c.id}</td><td>${c.forn}</td><td>${c.data}</td><td>${c.itens}</td><td>${c.val}</td><td><div style="display:flex;gap:6px"><span class="badge ok">✓ Atualizado</span><button class="btn outline btn-sm" onclick="openEditCompra(${c.id})">Editar</button><button class="btn danger btn-sm" onclick="deleteCompra(${c.id})">Excluir</button></div></td></tr>`).join('');
   }
   const tr=document.getElementById('tabela-refeicoes');
   if(tr){
     const refeicoesOrdenadas = ordenarRefeicoesPorData(REFEICOES_DATA);
     tr.innerHTML=refeicoesOrdenadas.map(r=>{
       const diff=r.prod-r.serv;
-      const pct=Math.round(r.serv/r.prod*100);
+      const pct=r.prod ? Math.round(r.serv/r.prod*100) : 0;
       const sc=pct>=97?'ok':'warn';
-      return`<tr><td>${r.id}</td><td>${formatarDataBrasil(r.data)}</td><td>${r.prod}</td><td>${r.serv}</td><td>${diff}</td><td><span class="badge ${sc}">${pct}%</span></td></tr>`;
+      return`<tr><td>${r.id}</td><td>${formatarDataBrasil(r.data)}</td><td>${r.prod}</td><td>${r.serv}</td><td>${diff}</td><td><div style="display:flex;gap:6px"><span class="badge ${sc}">${pct}%</span><button class="btn outline btn-sm" onclick="openEditRefeicao(${r.id})">Editar</button><button class="btn danger btn-sm" onclick="deleteRefeicao(${r.id})">Excluir</button></div></td></tr>`;
     }).join('');
   }
 
@@ -1350,6 +1526,540 @@ function renderTables(){
   renderRecomendacoesCompras();
   renderConcentracaoFornecedores();
   applyTableSearch();
+}
+
+function refreshAppViews(){
+  renderTables();
+  renderCharts();
+  gerarRelatorio();
+}
+
+function getRelatorioPeriodo(){
+  const inicioInput = document.getElementById('relatorios-data-inicio');
+  const fimInput = document.getElementById('relatorios-data-fim');
+  const inicio = inicioInput && inicioInput.value ? converterDataParaTimestamp(inicioInput.value) : -Infinity;
+  const fim = fimInput && fimInput.value ? converterDataParaTimestamp(fimInput.value) : Infinity;
+  return { inicio, fim };
+}
+
+function filtrarPorData(lista, campo = 'data'){
+  const { inicio, fim } = getRelatorioPeriodo();
+  if(inicio === -Infinity && fim === Infinity) return [...lista];
+  return lista.filter(item => {
+    const ts = converterDataParaTimestamp(item[campo]);
+    return ts !== null && ts >= inicio && ts <= fim;
+  });
+}
+
+function formatarPeriodoRelatorio(periodo){
+  const inicioText = periodo.inicio === -Infinity ? 'Início do histórico' : formatarDataBrasil(new Date(periodo.inicio).toISOString().slice(0,10));
+  const fimText = periodo.fim === Infinity ? 'Até o momento' : formatarDataBrasil(new Date(periodo.fim).toISOString().slice(0,10));
+  return `${inicioText} até ${fimText}`;
+}
+
+function getRelatorioExportData(){
+  const tipoEl = document.getElementById('relatorios-tipo');
+  const tipo = tipoEl ? String(tipoEl.value || 'Refeições').trim() : 'Relatório';
+  const periodo = getRelatorioPeriodo();
+  const periodLabel = formatarPeriodoRelatorio(periodo);
+  const generatedAt = new Date().toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const data = {
+    tipo,
+    titulo: `Relatório: ${tipo}`,
+    periodLabel,
+    generatedAt,
+    columns: [],
+    rows: [],
+    indicators: [],
+    cards: [],
+    observations: []
+  };
+
+  const mostFrequentFromStrings = (items = []) => {
+    const counts = {};
+    items.forEach(text => String(text || '').split(',').map(x=>x.trim()).filter(Boolean).forEach(key => { counts[key] = (counts[key] || 0) + 1; }));
+    const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+    return sorted.length ? sorted[0][0] : '—';
+  };
+
+  switch(tipo.toLowerCase()){
+    case 'estoque': {
+      const movimentosPeriodo = MOVIMENTACOES_DATA.filter(m => {
+        const ts = converterDataParaTimestamp(m.data);
+        return ts !== null && ts >= periodo.inicio && ts <= periodo.fim;
+      });
+      const estoqueAtual = ESTOQUE_DATA.reduce((acc, item) => {
+        acc[normalizarTexto(item.nome)] = { nome: item.nome, cat: item.cat, un: item.un, status: item.status || 'ok', qty: Number(item.qty) || 0 };
+        return acc;
+      }, {});
+      const acumuladosAposFim = {};
+      const acumuladosAposInicio = {};
+      const entradasPeriodo = {};
+      const saidasPeriodo = {};
+      MOVIMENTACOES_DATA.forEach(m => {
+        const ts = converterDataParaTimestamp(m.data);
+        if(ts === null) return;
+        const chave = normalizarTexto(m.item || '');
+        const quantidade = Number(m.quantidade) || 0;
+        const sinal = m.tipo === 'entrada' ? 1 : -1;
+        if(ts > periodo.fim) acumuladosAposFim[chave] = (acumuladosAposFim[chave] || 0) + sinal * quantidade;
+        if(ts >= periodo.inicio) acumuladosAposInicio[chave] = (acumuladosAposInicio[chave] || 0) + sinal * quantidade;
+        if(ts >= periodo.inicio && ts <= periodo.fim){
+          if(m.tipo === 'entrada') entradasPeriodo[chave] = (entradasPeriodo[chave] || 0) + quantidade;
+          else saidasPeriodo[chave] = (saidasPeriodo[chave] || 0) + quantidade;
+        }
+      });
+      const itemKeys = Array.from(new Set(movimentosPeriodo.map(m => normalizarTexto(m.item || ''))));
+      const totalEntradas = movimentosPeriodo.filter(m => m.tipo === 'entrada').reduce((sum, m) => sum + (Number(m.quantidade) || 0), 0);
+      const totalSaidas = movimentosPeriodo.filter(m => m.tipo === 'saida').reduce((sum, m) => sum + (Number(m.quantidade) || 0), 0);
+      const itensBaixo = ESTOQUE_DATA.filter(i => i.status === 'warn' || i.status === 'danger').length;
+      const proximosVencimento = ESTOQUE_DATA.filter(i => i.status === 'warn').length;
+      data.columns = ['Item','Categoria','Unidade','Saldo inicial','Entradas','Saídas','Saldo final','Status'];
+      data.rows = itemKeys.map(key => {
+        const meta = estoqueAtual[key] || { nome: movimentosPeriodo.find(m => normalizarTexto(m.item || '') === key)?.item || 'Item desconhecido', cat: '—', un: movimentosPeriodo.find(m => normalizarTexto(m.item || '') === key)?.unidade || 'kg', status: 'ok' };
+        const atual = Number((ESTOQUE_DATA.find(item => normalizarTexto(item.nome) === key) || {}).qty) || 0;
+        const saldoFinal = atual - (acumuladosAposFim[key] || 0);
+        const saldoInicial = atual - (acumuladosAposInicio[key] || 0);
+        const entradas = entradasPeriodo[key] || 0;
+        const saidas = saidasPeriodo[key] || 0;
+        return [meta.nome, meta.cat, meta.un, String(saldoInicial.toFixed(2).replace(/\.00$/, '')), String(entradas.toFixed(2).replace(/\.00$/, '')), String(saidas.toFixed(2).replace(/\.00$/, '')), String(saldoFinal.toFixed(2).replace(/\.00$/, '')), meta.status === 'ok' ? 'Dentro da validade' : meta.status === 'warn' ? 'Atenção' : 'Crítico'];
+      });
+      data.cards.push({ title: 'Total de alimentos', value: String(ESTOQUE_DATA.length), subtitle: 'Itens cadastrados em estoque' });
+      data.cards.push({ title: 'Itens movimentados', value: String(itemKeys.length), subtitle: 'Produtos afetados no período' });
+      data.cards.push({ title: 'Entradas', value: `${totalEntradas.toFixed(2).replace(/\.00$/, '')}`, subtitle: 'Quantidade registrada' });
+      data.cards.push({ title: 'Saídas', value: `${totalSaidas.toFixed(2).replace(/\.00$/, '')}`, subtitle: 'Quantidade consumida' });
+      data.indicators.push(`Itens movimentados no período: ${itemKeys.length}`);
+      data.indicators.push(`Entradas totais: ${totalEntradas.toFixed(2).replace(/\.00$/, '')}`);
+      data.indicators.push(`Saídas totais: ${totalSaidas.toFixed(2).replace(/\.00$/, '')}`);
+      data.indicators.push(`Itens com estoque baixo: ${itensBaixo}`);
+      if(itensBaixo) data.observations.push(`Existem ${itensBaixo} itens com estoque baixo.`);
+      if(proximosVencimento) data.observations.push(`${proximosVencimento} item(ns) estão próximos do vencimento.`);
+      if(!movimentosPeriodo.length) data.observations.push('Nenhuma movimentação registrada no período selecionado.');
+      break;
+    }
+    case 'doações': {
+      const lista = filtrarPorData(DOACOES_DATA, 'data');
+      const totalDoacoes = lista.reduce((sum, item) => sum + parseQty(item.qty), 0);
+      const doadoresUnicos = new Set(lista.map(d => String(d.doador || '').trim()).filter(Boolean)).size;
+      const maisDoado = mostFrequentFromStrings(lista.map(d => d.itens));
+      data.columns = ['ID','Doador','Data','Itens','Quantidade'];
+      data.rows = lista.map(d => [String(d.id), d.doador, formatarDataBrasil(d.data), d.itens, d.qty]);
+      data.cards.push({ title: 'Total de doações', value: String(lista.length), subtitle: 'Registros no período' });
+      data.cards.push({ title: 'Quantidade recebida', value: `${totalDoacoes.toFixed(1).replace(/\.0$/, '')} kg`, subtitle: 'Volume acumulado' });
+      data.cards.push({ title: 'Doadores', value: String(doadoresUnicos), subtitle: 'Fontes diferentes' });
+      data.cards.push({ title: 'Alimento mais doado', value: maisDoado, subtitle: 'Mais recorrente' });
+      data.indicators.push(`Total de doações: ${lista.length}`);
+      data.indicators.push(`Volume total: ${totalDoacoes.toFixed(1).replace(/\.0$/, '')} kg`);
+      data.indicators.push(`Doadores únicos: ${doadoresUnicos}`);
+      if(maisDoado) data.indicators.push(`Alimento mais doado: ${maisDoado}`);
+      if(!lista.length) data.observations.push('Não há doações no período selecionado.');
+      break;
+    }
+    case 'compras': {
+      const lista = filtrarPorData(COMPRAS_DATA, 'data');
+      const totalCompras = lista.reduce((sum, item) => sum + parseValorReal(item.val), 0);
+      const fornecedoresUnicos = new Set(lista.map(c => String(c.forn || '').trim()).filter(Boolean)).size;
+      const maisComprado = mostFrequentFromStrings(lista.map(c => c.itens));
+      data.columns = ['ID','Fornecedor','Data','Itens','Valor'];
+      data.rows = lista.map(c => [String(c.id), c.forn, formatarDataBrasil(c.data), c.itens, c.val]);
+      data.cards.push({ title: 'Total gasto', value: `R$ ${totalCompras.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2})}`, subtitle: 'Valor acumulado' });
+      data.cards.push({ title: 'Compras', value: String(lista.length), subtitle: 'Registros no período' });
+      data.cards.push({ title: 'Fornecedores', value: String(fornecedoresUnicos), subtitle: 'Parceiros distintos' });
+      data.cards.push({ title: 'Produto mais comprado', value: maisComprado, subtitle: 'Mais recorrente' });
+      data.indicators.push(`Total de compras: ${lista.length}`);
+      data.indicators.push(`Valor total: R$ ${totalCompras.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2})}`);
+      data.indicators.push(`Fornecedores únicos: ${fornecedoresUnicos}`);
+      if(!lista.length) data.observations.push('Não há compras no período selecionado.');
+      break;
+    }
+    case 'refeições': {
+      const lista = filtrarPorData(REFEICOES_DATA, 'data').sort((a,b)=>converterDataParaTimestamp(b.data)-converterDataParaTimestamp(a.data));
+      const totalProduzidas = lista.reduce((sum,r)=> sum + (Number(r.prod)||0), 0);
+      const totalServidas = lista.reduce((sum,r)=> sum + (Number(r.serv)||0), 0);
+      const totalNaoServidas = totalProduzidas - totalServidas;
+      const aproveitamento = totalProduzidas ? Math.round((totalServidas / totalProduzidas) * 100) : 0;
+      data.columns = ['ID','Data','Produzidas','Servidas','Não servidas','% Aproveitamento'];
+      data.rows = lista.map(r => {
+        const diff = Number(r.prod || 0) - Number(r.serv || 0);
+        const pct = r.prod ? Math.round((Number(r.serv || 0) / Number(r.prod || 1)) * 100) : 0;
+        return [String(r.id), formatarDataBrasil(r.data), String(r.prod), String(r.serv), String(diff), `${pct}%`];
+      });
+      data.cards.push({ title: 'Refeições produzidas', value: String(totalProduzidas), subtitle: 'Total no período' });
+      data.cards.push({ title: 'Refeições servidas', value: String(totalServidas), subtitle: 'Atendidas' });
+      data.cards.push({ title: 'Desperdício', value: String(totalNaoServidas), subtitle: 'Não servidas' });
+      data.cards.push({ title: 'Aproveitamento', value: `${aproveitamento}%`, subtitle: 'Eficiência da produção' });
+      data.indicators.push(`Registros: ${lista.length}`);
+      data.indicators.push(`Total produzido: ${totalProduzidas}`);
+      data.indicators.push(`Total servido: ${totalServidas}`);
+      data.indicators.push(`Não servidas: ${totalNaoServidas}`);
+      data.indicators.push(`Aproveitamento médio: ${aproveitamento}%`);
+      if(totalNaoServidas > 0) data.observations.push('O desvio entre produzido e servido indica oportunidades de otimização de cardápio e consumo.');
+      break;
+    }
+    case 'geral': {
+      const doacoes = filtrarPorData(DOACOES_DATA, 'data');
+      const totalDoacoes = doacoes.reduce((sum, item) => sum + parseQty(item.qty), 0);
+      const doadoresUnicos = new Set(doacoes.map(d => String(d.doador || '').trim()).filter(Boolean)).size;
+      const compras = filtrarPorData(COMPRAS_DATA, 'data');
+      const totalCompras = compras.reduce((sum, item) => sum + parseValorReal(item.val), 0);
+      const fornecedoresUnicos = new Set(compras.map(c => String(c.forn || '').trim()).filter(Boolean)).size;
+      const refeicoes = filtrarPorData(REFEICOES_DATA, 'data');
+      const totalServidas = refeicoes.reduce((sum, item) => sum + Number(item.serv || 0), 0);
+      const totalProduzidas = refeicoes.reduce((sum, item) => sum + Number(item.prod || 0), 0);
+      const desperdicio = totalProduzidas - totalServidas;
+      const aproveitamentoMedio = totalProduzidas ? Math.round((totalServidas / totalProduzidas) * 100) : 0;
+      const movimentos = MOVIMENTACOES_DATA.filter(m => {
+        const ts = converterDataParaTimestamp(m.data);
+        return ts !== null && ts >= periodo.inicio && ts <= periodo.fim;
+      });
+      const estoqueMovItems = new Set(movimentos.map(m => normalizarTexto(m.item || '')));
+      const entradasEstoque = movimentos.filter(m => m.tipo === 'entrada').reduce((sum, m) => sum + (Number(m.quantidade) || 0), 0);
+      const saidasEstoque = movimentos.filter(m => m.tipo === 'saida').reduce((sum, m) => sum + (Number(m.quantidade) || 0), 0);
+      const itensBaixo = ESTOQUE_DATA.filter(i => i.status === 'warn' || i.status === 'danger').length;
+      const ultimaMovimentacaoEstoque = movimentos.slice().sort((a,b)=>converterDataParaTimestamp(b.data)-converterDataParaTimestamp(a.data))[0];
+      const ultimaDoacao = doacoes.slice().sort((a,b)=>converterDataParaTimestamp(b.data)-converterDataParaTimestamp(a.data))[0];
+      const ultimaCompra = compras.slice().sort((a,b)=>converterDataParaTimestamp(b.data)-converterDataParaTimestamp(a.data))[0];
+      const ultimaRefeicao = refeicoes.slice().sort((a,b)=>converterDataParaTimestamp(b.data)-converterDataParaTimestamp(a.data))[0];
+      data.columns = ['Módulo','Total de registros','Resumo gerencial','Última data'];
+      data.rows = [
+        ['Estoque', String(ESTOQUE_DATA.length), `${movimentos.length} movimentações; ${entradasEstoque.toFixed(2).replace(/\.00$/, '')} entradas; ${saidasEstoque.toFixed(2).replace(/\.00$/, '')} saídas; ${itensBaixo} itens críticos/aviso`, ultimaMovimentacaoEstoque ? formatarDataBrasil(ultimaMovimentacaoEstoque.data) : '—'],
+        ['Doações', String(doacoes.length), `${totalDoacoes.toFixed(1).replace(/\.0$/, '')} kg recebidos; ${doadoresUnicos} doadores distintos`, ultimaDoacao ? formatarDataBrasil(ultimaDoacao.data) : '—'],
+        ['Compras', String(compras.length), `R$ ${totalCompras.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})} investidos; ${fornecedoresUnicos} fornecedores`, ultimaCompra ? formatarDataBrasil(ultimaCompra.data) : '—'],
+        ['Refeições', String(refeicoes.length), `${totalProduzidas} produzidas; ${totalServidas} servidas; desperdício de ${desperdicio}; aproveitamento de ${aproveitamentoMedio}%`, ultimaRefeicao ? formatarDataBrasil(ultimaRefeicao.data) : '—']
+      ];
+      data.cards.push({ title: 'Total de alimentos', value: String(ESTOQUE_DATA.length), subtitle: 'Itens no estoque' });
+      data.cards.push({ title: 'Total de compras', value: `R$ ${totalCompras.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`, subtitle: 'Investimento no período' });
+      data.cards.push({ title: 'Total de doações', value: String(doacoes.length), subtitle: 'Registros de doação' });
+      data.cards.push({ title: 'Total de refeições', value: String(refeicoes.length), subtitle: 'Dias registrados' });
+      data.indicators.push(`Doações: ${doacoes.length} registros · ${totalDoacoes.toFixed(1).replace(/\.0$/, '')} kg`);
+      data.indicators.push(`Compras: ${compras.length} registros · R$ ${totalCompras.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}`);
+      data.indicators.push(`Refeições produzidas: ${totalProduzidas}`);
+      data.indicators.push(`Aproveitamento médio: ${aproveitamentoMedio}%`);
+      if(itensBaixo) data.observations.push(`${itensBaixo} itens com estoque baixo ou críticos.`);
+      if(desperdicio > 0) data.observations.push(`Desperdício identificado de ${desperdicio} refeições no período.`);
+      if(entradasEstoque === 0 && saidasEstoque === 0) data.observations.push('Nenhuma movimentação de estoque registrada no período.');
+      break;
+    }
+    default: {
+      data.columns = ['Campo','Valor'];
+      data.rows = [['Tipo de relatório','Inválido']];
+      break;
+    }
+  }
+  return data;
+}
+
+function exportRelatorioPDF(){
+  const payload = getRelatorioExportData();
+  if(!payload || !payload.columns.length){
+    showToast('Nenhum relatório disponível para exportar.');
+    return;
+  }
+  if(!window.jspdf || !window.jspdf.jsPDF){
+    showToast('Biblioteca jsPDF não carregada.');
+    return;
+  }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 40;
+  const titleY = 40;
+
+  doc.setProperties({ title: payload.titulo, subject: 'Exportação de relatório' });
+  doc.setFillColor(244, 246, 249);
+  doc.rect(0, 0, pageWidth, titleY + 18, 'F');
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(34, 56, 89);
+  doc.text('SIG - Restaurante Popular', margin, titleY);
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'normal');
+  doc.text(payload.titulo, margin, titleY + 18);
+  doc.setFontSize(9);
+  doc.setTextColor(102, 102, 102);
+  doc.text(`Gerado em: ${payload.generatedAt}`, pageWidth - margin, titleY, { align: 'right' });
+  doc.text(`Período: ${payload.periodLabel}`, pageWidth - margin, titleY + 14, { align: 'right' });
+  doc.setDrawColor(200);
+  doc.setLineWidth(0.5);
+  doc.line(margin, titleY + 24, pageWidth - margin, titleY + 24);
+
+  const cardTop = titleY + 34;
+  const cardWidth = (pageWidth - margin * 2 - 30) / 4;
+  const cardHeight = 56;
+  payload.cards.slice(0,4).forEach((card, index) => {
+    const x = margin + (cardWidth + 10) * (index % 4);
+    const y = cardTop;
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(x, y, cardWidth, cardHeight, 6, 6, 'F');
+    doc.setDrawColor(220);
+    doc.roundedRect(x, y, cardWidth, cardHeight, 6, 6, 'S');
+    doc.setFontSize(10);
+    doc.setTextColor(94, 108, 132);
+    doc.text(card.subtitle, x + 10, y + 16);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(23, 43, 77);
+    doc.text(String(card.value), x + 10, y + 38);
+    doc.setFont('helvetica', 'normal');
+  });
+
+  const tableStartY = cardTop + cardHeight + 20;
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(34, 56, 89);
+  doc.text('Tabela de registros', margin, tableStartY - 8);
+  doc.setDrawColor(200);
+  doc.line(margin, tableStartY - 4, pageWidth - margin, tableStartY - 4);
+
+  doc.autoTable({
+    startY: tableStartY + 6,
+    margin: { left: margin, right: margin, bottom: margin },
+    head: [payload.columns],
+    body: payload.rows,
+    theme: 'grid',
+    styles: { fontSize: 9, cellPadding: 6, textColor: 44 },
+    headStyles: { fillColor: [34, 91, 163], textColor: 255 },
+    alternateRowStyles: { fillColor: [245, 248, 253] },
+    didDrawPage: function(data){
+      const pageNumber = doc.internal.getCurrentPageInfo().pageNumber;
+      const footerY = pageHeight - 20;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(128, 128, 128);
+      doc.text(`Página ${pageNumber}`, pageWidth - margin, footerY, { align: 'right' });
+      doc.text('SIG - Restaurante Popular · Alagoas Sem Fome', margin, footerY);
+    }
+  });
+
+  const summaryStartY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 24 : tableStartY + 20;
+  if(summaryStartY + 20 < pageHeight - margin){
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Resumo gerencial', margin, summaryStartY);
+    doc.setDrawColor(200);
+    doc.line(margin, summaryStartY + 4, pageWidth - margin, summaryStartY + 4);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    let noteY = summaryStartY + 18;
+    const observations = payload.observations.length ? payload.observations : ['Nenhuma observação adicional.'];
+    observations.forEach(obs => {
+      if(noteY > pageHeight - margin - 10){ doc.addPage(); noteY = margin; }
+      doc.text(`• ${obs}`, margin, noteY);
+      noteY += 14;
+    });
+  }
+
+  const filename = `${payload.titulo.replace(/[^a-zA-Z0-9]+/g,'_')}_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'_')}.pdf`;
+  doc.save(filename);
+  showToast('PDF exportado com sucesso.');
+}
+
+function calcularRelatorioEstoquePorPeriodo(){
+  const { inicio, fim } = getRelatorioPeriodo();
+  const movimentosPeriodo = MOVIMENTACOES_DATA.filter(m => {
+    const ts = converterDataParaTimestamp(m.data);
+    return ts !== null && ts >= inicio && ts <= fim;
+  });
+  if(!movimentosPeriodo.length){
+    return {
+      header: '<tr><th>Item</th><th>Categoria</th><th>Unidade</th><th>Saldo inicial</th><th>Entradas</th><th>Saídas</th><th>Saldo final</th><th>Status</th></tr>',
+      body: '<tr><td colspan="8" style="text-align:center;color:var(--gray-400);padding:18px">Nenhuma movimentação de estoque registrada no período selecionado.</td></tr>'
+    };
+  }
+
+  const estoqueAtual = ESTOQUE_DATA.reduce((acc, item) => {
+    acc[normalizarTexto(item.nome)] = {
+      nome: item.nome,
+      cat: item.cat,
+      un: item.un,
+      status: item.status || 'ok'
+    };
+    return acc;
+  }, {});
+
+  const acumuladosAposFim = {};
+  const acumuladosAposInicio = {};
+  const entradasPeriodo = {};
+  const saidasPeriodo = {};
+
+  MOVIMENTACOES_DATA.forEach(m => {
+    const ts = converterDataParaTimestamp(m.data);
+    if(ts === null) return;
+    const chave = normalizarTexto(m.item || '');
+    const quantidade = Number(m.quantidade) || 0;
+    const sinal = m.tipo === 'entrada' ? 1 : -1;
+
+    if(ts > fim){
+      acumuladosAposFim[chave] = (acumuladosAposFim[chave] || 0) + sinal * quantidade;
+    }
+    if(ts >= inicio){
+      acumuladosAposInicio[chave] = (acumuladosAposInicio[chave] || 0) + sinal * quantidade;
+    }
+    if(ts >= inicio && ts <= fim){
+      if(m.tipo === 'entrada'){
+        entradasPeriodo[chave] = (entradasPeriodo[chave] || 0) + quantidade;
+      } else {
+        saidasPeriodo[chave] = (saidasPeriodo[chave] || 0) + quantidade;
+      }
+    }
+  });
+
+  const itemKeys = Array.from(new Set(movimentosPeriodo.map(m => normalizarTexto(m.item || ''))));
+  const rows = itemKeys.map(key => {
+    const meta = estoqueAtual[key] || { nome: movimentosPeriodo.find(m => normalizarTexto(m.item || '') === key)?.item || 'Item desconhecido', cat: '—', un: movimentosPeriodo.find(m => normalizarTexto(m.item || '') === key)?.unidade || 'kg', status: 'ok' };
+    const atual = Number((ESTOQUE_DATA.find(item => normalizarTexto(item.nome) === key) || {}).qty) || 0;
+    const saldoFinal = atual - (acumuladosAposFim[key] || 0);
+    const saldoInicial = atual - (acumuladosAposInicio[key] || 0);
+    const entradas = entradasPeriodo[key] || 0;
+    const saidas = saidasPeriodo[key] || 0;
+    return `<tr><td><strong>${meta.nome}</strong></td><td>${meta.cat}</td><td>${meta.un}</td><td>${saldoInicial.toFixed(2).replace(/\.00$/, '')}</td><td>${entradas.toFixed(2).replace(/\.00$/, '')}</td><td>${saidas.toFixed(2).replace(/\.00$/, '')}</td><td>${saldoFinal.toFixed(2).replace(/\.00$/, '')}</td><td><span class="badge ${meta.status}">${meta.status === 'ok' ? 'Dentro da validade' : meta.status === 'warn' ? 'Atenção' : 'Crítico'}</span></td></tr>`;
+  }).join('');
+
+  return {
+    header: '<tr><th>Item</th><th>Categoria</th><th>Unidade</th><th>Saldo inicial</th><th>Entradas</th><th>Saídas</th><th>Saldo final</th><th>Status</th></tr>',
+    body: rows
+  };
+}
+
+function gerarRelatorio(){
+  const tipoEl = document.getElementById('relatorios-tipo');
+  const tituloEl = document.getElementById('relatorios-titulo');
+  const theadEl = document.getElementById('relatorios-thead');
+  const bodyEl = document.getElementById('relatorios-body');
+  if(!tipoEl || !tituloEl || !theadEl || !bodyEl) return;
+
+  const tipo = String(tipoEl.value || 'Refeições').trim();
+  let headerHtml = '';
+  let bodyHtml = '';
+  let titulo = `Relatório: ${tipo}`;
+  const resumoEl = document.getElementById('relatorios-geral-resumo');
+  const metadataEl = document.getElementById('relatorios-geral-metadata');
+  if(resumoEl){ resumoEl.style.display = 'none'; resumoEl.innerHTML = ''; }
+  if(metadataEl){ metadataEl.style.display = 'none'; metadataEl.innerHTML = ''; }
+
+  switch(tipo.toLowerCase()){
+    case 'estoque': {
+      const relatorio = calcularRelatorioEstoquePorPeriodo();
+      headerHtml = relatorio.header;
+      bodyHtml = relatorio.body;
+      break;
+    }
+    case 'doações': {
+      headerHtml = '<tr><th>ID</th><th>Doador</th><th>Data</th><th>Itens</th><th>Quantidade</th></tr>';
+      const lista = filtrarPorData(DOACOES_DATA, 'data');
+      if(!lista.length){
+        bodyHtml = '<tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:18px">Nenhuma doação encontrada no período selecionado.</td></tr>';
+      }else{
+        bodyHtml = lista.map(d => `<tr><td>${d.id}</td><td>${d.doador}</td><td>${formatarDataBrasil(d.data)}</td><td>${d.itens}</td><td>${d.qty}</td></tr>`).join('');
+      }
+      break;
+    }
+    case 'compras': {
+      headerHtml = '<tr><th>ID</th><th>Fornecedor</th><th>Data</th><th>Itens</th><th>Valor</th></tr>';
+      const lista = filtrarPorData(COMPRAS_DATA, 'data');
+      if(!lista.length){
+        bodyHtml = '<tr><td colspan="5" style="text-align:center;color:var(--gray-400);padding:18px">Nenhuma compra encontrada no período selecionado.</td></tr>';
+      }else{
+        bodyHtml = lista.map(c => `<tr><td>${c.id}</td><td>${c.forn}</td><td>${formatarDataBrasil(c.data)}</td><td>${c.itens}</td><td>${c.val}</td></tr>`).join('');
+      }
+      break;
+    }
+    case 'refeições': {
+      headerHtml = '<tr><th>ID</th><th>Data</th><th>Produzidas</th><th>Servidas</th><th>Não servidas</th><th>% Aproveitamento</th></tr>';
+      const lista = filtrarPorData(REFEICOES_DATA, 'data').sort((a,b)=>converterDataParaTimestamp(b.data)-converterDataParaTimestamp(a.data));
+      if(!lista.length){
+        bodyHtml = '<tr><td colspan="6" style="text-align:center;color:var(--gray-400);padding:18px">Nenhuma produção registrada no período selecionado.</td></tr>';
+      }else{
+        bodyHtml = lista.map(r => {
+          const diff = Number(r.prod || 0) - Number(r.serv || 0);
+          const pct = r.prod ? Math.round((Number(r.serv || 0) / Number(r.prod || 1)) * 100) : 0;
+          const sc = pct >= 97 ? 'ok' : 'warn';
+          return `<tr><td>${r.id}</td><td>${formatarDataBrasil(r.data)}</td><td>${r.prod}</td><td>${r.serv}</td><td>${diff}</td><td><span class="badge ${sc}">${pct}%</span></td></tr>`;
+        }).join('');
+      }
+      break;
+    }
+    case 'geral': {
+      titulo = 'Relatório: Geral';
+      const periodo = getRelatorioPeriodo();
+      const periodLabel = formatarPeriodoRelatorio(periodo);
+      const generatedAt = new Date().toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      const doacoes = filtrarPorData(DOACOES_DATA, 'data');
+      const totalDoacoes = doacoes.reduce((sum, item) => {
+        const m = String(item.qty || '').replace(',', '.').match(/([\d\.]+)/);
+        return sum + (m ? Number(m[1]) : 0);
+      }, 0);
+      const doadoresUnicos = new Set(doacoes.map(d => String(d.doador || '').trim()).filter(Boolean)).size;
+      const compras = filtrarPorData(COMPRAS_DATA, 'data');
+      const totalCompras = compras.reduce((sum, item) => sum + parseValorReal(item.val), 0);
+      const fornecedoresUnicos = new Set(compras.map(c => String(c.forn || '').trim()).filter(Boolean)).size;
+      const refeicoes = filtrarPorData(REFEICOES_DATA, 'data');
+      const totalServidas = refeicoes.reduce((sum, item) => sum + Number(item.serv || 0), 0);
+      const totalProduzidas = refeicoes.reduce((sum, item) => sum + Number(item.prod || 0), 0);
+      const desperdicio = totalProduzidas - totalServidas;
+      const aproveitamentoMedio = totalProduzidas ? Math.round((totalServidas / totalProduzidas) * 100) : 0;
+      const movimentos = MOVIMENTACOES_DATA.filter(m => {
+        const ts = converterDataParaTimestamp(m.data);
+        return ts !== null && ts >= periodo.inicio && ts <= periodo.fim;
+      });
+      const estoqueMovItems = new Set(movimentos.map(m => normalizarTexto(m.item || '')));
+      const entradasEstoque = movimentos.filter(m => m.tipo === 'entrada').reduce((sum, m) => sum + (Number(m.quantidade) || 0), 0);
+      const saidasEstoque = movimentos.filter(m => m.tipo === 'saida').reduce((sum, m) => sum + (Number(m.quantidade) || 0), 0);
+      const itensBaixo = ESTOQUE_DATA.filter(i => i.status === 'warn' || i.status === 'danger').length;
+      const ultimaMovimentacaoEstoque = movimentos.slice().sort((a,b)=>converterDataParaTimestamp(b.data)-converterDataParaTimestamp(a.data))[0];
+      const ultimaDoacao = doacoes.slice().sort((a,b)=>converterDataParaTimestamp(b.data)-converterDataParaTimestamp(a.data))[0];
+      const ultimaCompra = compras.slice().sort((a,b)=>converterDataParaTimestamp(b.data)-converterDataParaTimestamp(a.data))[0];
+      const ultimaRefeicao = refeicoes.slice().sort((a,b)=>converterDataParaTimestamp(b.data)-converterDataParaTimestamp(a.data))[0];
+
+      if(metadataEl){
+        metadataEl.style.display = 'block';
+        metadataEl.innerHTML = `
+          <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;margin-bottom:16px">
+            <div style="flex:1;min-width:220px"><strong>Período</strong><div style="margin-top:4px;color:var(--gray-600)">${periodLabel}</div></div>
+            <div style="flex:1;min-width:220px"><strong>Gerado em</strong><div style="margin-top:4px;color:var(--gray-600)">${generatedAt}</div></div>
+          </div>
+        `;
+      }
+
+      if(resumoEl){
+        resumoEl.style.display = 'block';
+        resumoEl.innerHTML = `
+          <div style="margin-bottom:18px">
+            <div style="font-size:14px;font-weight:700;margin-bottom:10px">Resumo geral</div>
+            <div class="stat-grid" style="grid-template-columns:repeat(3,1fr);gap:12px">
+              <div class="stat-card"><div style="font-size:11px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px">Alimentos cadastrados</div><div style="font-size:22px;font-weight:700;margin-top:8px">${ESTOQUE_DATA.length}</div></div>
+              <div class="stat-card"><div style="font-size:11px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px">Doações no período</div><div style="font-size:22px;font-weight:700;margin-top:8px">${totalDoacoes.toFixed(1).replace(/\.0$/,'')} kg</div></div>
+              <div class="stat-card"><div style="font-size:11px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px">Compras no período</div><div style="font-size:22px;font-weight:700;margin-top:8px">R$ ${totalCompras.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}</div></div>
+              <div class="stat-card"><div style="font-size:11px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px">Refeições produzidas</div><div style="font-size:22px;font-weight:700;margin-top:8px">${totalProduzidas}</div></div>
+              <div class="stat-card"><div style="font-size:11px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px">Refeições servidas</div><div style="font-size:22px;font-weight:700;margin-top:8px">${totalServidas}</div></div>
+              <div class="stat-card"><div style="font-size:11px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px">Desperdício</div><div style="font-size:22px;font-weight:700;margin-top:8px">${desperdicio}</div></div>
+            </div>
+          </div>
+        `;
+      }
+
+      headerHtml = '<tr><th>Módulo</th><th>Total de registros</th><th>Resumo gerencial</th><th>Última movimentação</th></tr>';
+      bodyHtml = `
+        <tr><td><strong>Estoque</strong></td><td>${ESTOQUE_DATA.length}</td><td>Foram cadastrados ${ESTOQUE_DATA.length} alimentos; ${movimentos.length} movimentações registradas; ${entradasEstoque.toFixed(2).replace(/\.00$/,'')} kg/L/un de entradas; ${saidasEstoque.toFixed(2).replace(/\.00$/,'')} kg/L/un de saídas; ${itensBaixo} itens com estoque baixo.</td><td>${ultimaMovimentacaoEstoque ? formatarDataBrasil(ultimaMovimentacaoEstoque.data) : '—'}</td></tr>
+        <tr><td><strong>Doações</strong></td><td>${doacoes.length}</td><td>${doacoes.length} doações registradas; ${totalDoacoes.toFixed(1).replace(/\.0$/,'')} kg recebidos; ${doadoresUnicos} doadores diferentes.</td><td>${ultimaDoacao ? formatarDataBrasil(ultimaDoacao.data) : '—'}</td></tr>
+        <tr><td><strong>Compras</strong></td><td>${compras.length}</td><td>${compras.length} compras realizadas; valor total investido de R$ ${totalCompras.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}; ${fornecedoresUnicos} fornecedores cadastrados.</td><td>${ultimaCompra ? formatarDataBrasil(ultimaCompra.data) : '—'}</td></tr>
+        <tr><td><strong>Refeições</strong></td><td>${refeicoes.length}</td><td>${totalProduzidas} refeições produzidas; ${totalServidas} refeições servidas; ${desperdicio} refeições não servidas; aproveitamento de ${aproveitamentoMedio}% da produção.</td><td>${ultimaRefeicao ? formatarDataBrasil(ultimaRefeicao.data) : '—'}</td></tr>
+      `;
+      break;
+    }
+    default: {
+      titulo = `Relatório: ${tipo}`;
+      headerHtml = '<tr><th>Dados</th><th>Valor</th></tr>';
+      bodyHtml = '<tr><td colspan="2" style="text-align:center;color:var(--gray-400);padding:18px">Tipo de relatório inválido.</td></tr>';
+      break;
+    }
+  }
+
+  tituloEl.textContent = titulo;
+  theadEl.innerHTML = headerHtml;
+  bodyEl.innerHTML = bodyHtml;
 }
 
 function renderDoacoesSummary(){
@@ -1469,7 +2179,31 @@ function deleteDoacao(id){
 
   // remove doacao
   DOACOES_DATA.splice(idx,1);
-  saveData(); renderTables(); showToast('Doação removida e estoque revertido (quando possível).');
+  saveData(); refreshAppViews(); showToast('Doação removida e estoque revertido (quando possível).');
+}
+
+function deleteCompra(id){
+  if(!confirm('Excluir esta compra? Isso tentará reverter o estoque.')) return;
+  const idx = COMPRAS_DATA.findIndex(c => Number(c.id) === Number(id));
+  if(idx === -1){ showToast('Compra não encontrada.'); return; }
+  const compra = COMPRAS_DATA[idx];
+  try{
+    reverterEntradaRegistro(compra, 'compra');
+  }catch(e){ console.warn('Erro ao reverter estoque para compra', e); }
+  COMPRAS_DATA.splice(idx,1);
+  saveData(); refreshAppViews(); showToast('Compra removida e estoque ajustado.');
+}
+
+function deleteRefeicao(id){
+  if(!confirm('Excluir este registro de refeição? Isso tentará restaurar o estoque consumido.')) return;
+  const idx = REFEICOES_DATA.findIndex(r => Number(r.id) === Number(id));
+  if(idx === -1){ showToast('Registro de refeição não encontrado.'); return; }
+  const refeicao = REFEICOES_DATA[idx];
+  try{
+    reverterRefeicaoRegistro(refeicao);
+  }catch(e){ console.warn('Erro ao reverter estoque para refeição', e); }
+  REFEICOES_DATA.splice(idx,1);
+  saveData(); refreshAppViews(); showToast('Registro de refeição excluído e estoque restaurado.');
 }
 
 function getRecomendacoesCompras(thresholdKg = 10){
@@ -1712,6 +2446,7 @@ function openModal(id){
     }catch(e){/* ignore */}
   }
   if(id === 'modal-doacao'){
+    el.removeAttribute('data-editing-id');
     // popular doadores com base nos registros existentes
     const selDoador = document.getElementById('sel-doador');
     if(selDoador){
@@ -1738,6 +2473,7 @@ function openModal(id){
   }
 
   if(id === 'modal-compra'){
+    el.removeAttribute('data-editing-id');
     // popular fornecedores com base nos registros existentes
     const selForn = document.getElementById('sel-fornecedor-compra');
     if(selForn){
@@ -1777,6 +2513,9 @@ function openModal(id){
       cVal.value = preco ? preco.toFixed(2) : '';
     }
     const cValidade = document.getElementById('compra-validade'); if(cValidade) cValidade.value = '';
+  }
+  if(id === 'modal-refeicao'){
+    el.removeAttribute('data-editing-id');
   }
 
   el.classList.add('open');
@@ -1927,7 +2666,7 @@ function saveMovimentacao(){
   MOVIMENTACOES_DATA.unshift({id,tipo,item:item.nome,quantidade:qty,unidade,data,obs});
 
   saveData();
-  renderTables();
+  refreshAppViews();
   closeModal('modal-movimentacao');
   showToast(tipo === 'entrada' ? 'Entrada registrada no estoque.' : 'Saída registrada no estoque.');
 }
@@ -2161,14 +2900,18 @@ function renderMovimentacoes(){
 // Enhanced save handlers that persist to localStorage and update UI
 function saveAlimento(){
   const m=document.getElementById('modal-alimento');
-  const nome = m.querySelector('input.form-input').value || 'Novo alimento';
+  const nome = (m.querySelector('input.form-input')?.value || '').trim() || 'Novo alimento';
   const sel = m.querySelector('select.form-select');
   const cat = sel?sel.value:'Outros';
   const unit = m.querySelector('select.form-select:nth-of-type(2)')?m.querySelector('select.form-select:nth-of-type(2)').value:'kg';
   const qty = parseFloat(m.querySelector('input[type=number]')?.value||0);
-  const valRaw = m.querySelector('input[type=date]')?.value||'';
-  const val = valRaw ? formatarDataBrasil(valRaw) : '';
-  // se estivermos editando um alimento existente, atualize-o
+  const validadeRaw = document.getElementById('alim-mov-validade')?.value || '';
+  const validadeFmt = validadeRaw ? formatarDataBrasil(validadeRaw) : '';
+  const dataMov = document.getElementById('alim-mov-data')?.value || new Date().toISOString().split('T')[0];
+
+  if(!nome){ showToast('Informe o nome do alimento.'); return; }
+  if(qty > 0 && !validadeFmt){ showToast('Informe validade para a entrada inicial de estoque.'); return; }
+
   const editingId = m.getAttribute('data-editing-id');
   if(editingId){
     const item = ESTOQUE_DATA.find(x => String(x.id) === String(editingId));
@@ -2177,19 +2920,36 @@ function saveAlimento(){
       item.cat = cat;
       if(!Number.isNaN(qty) && qty > 0) item.qty = qty;
       item.un = unit;
-      if(val) item.val = val;
+      if(validadeFmt) item.val = validadeFmt;
       atualizarStatusEstoque(item);
       sortEstoque();
-      saveData(); renderTables(); closeModal('modal-alimento'); showToast('Alimento atualizado.');
+      saveData(); refreshAppViews(); closeModal('modal-alimento'); showToast('Alimento atualizado.');
       m.removeAttribute('data-editing-id');
       return;
     }
   }
 
-  const id = ESTOQUE_DATA.length?Math.max(...ESTOQUE_DATA.map(x=>x.id))+1:1;
-  ESTOQUE_DATA.push({id,nome,cat,qty,un:unit,val,status:'ok'});
+  const existingItem = encontrarItemEstoquePorNome(nome);
+  if(existingItem && qty === 0){
+    showToast('Este alimento já existe no estoque. Use movimentação para ajustar quantidades.');
+    return;
+  }
+
+  let item = null;
+  if(qty > 0){
+    item = adicionarAoEstoque({ nome, quantidade: qty, unidade: unit, categoria: cat, validade: validadeFmt });
+    if(item){
+      const movId = MOVIMENTACOES_DATA.length ? Math.max(...MOVIMENTACOES_DATA.map(x=>x.id)) + 1 : 1;
+      MOVIMENTACOES_DATA.unshift({ id: movId, tipo: 'entrada', item: item.nome, quantidade: qty, unidade: unit, data: dataMov, obs: `Entrada inicial - validade ${validadeFmt}` });
+    }
+  } else {
+    const id = ESTOQUE_DATA.length?Math.max(...ESTOQUE_DATA.map(x=>x.id))+1:1;
+    item = { id, nome, cat, qty: 0, un: unit, val: '', status: 'ok' };
+    ESTOQUE_DATA.push(item);
+  }
+
   sortEstoque();
-  saveData(); renderTables(); closeModal('modal-alimento'); showToast('Alimento cadastrado e salvo.');
+  saveData(); refreshAppViews(); closeModal('modal-alimento'); showToast('Alimento cadastrado e salvo.');
 }
 
 function abrirSaidaEstoque(id){
@@ -2205,11 +2965,108 @@ function abrirSaidaEstoque(id){
 }
 
 function openAlimentoEdit(id){
-  // Ao clicar em Editar, abrir o modal de movimentação pré-selecionando o item.
   const item = ESTOQUE_DATA.find(x => Number(x.id) === Number(id));
   if(!item) { showToast('Item não encontrado'); return; }
-  // abrir modal de movimentação com o item selecionado
-  openMovimentacaoModal(item.nome);
+  openModal('modal-alimento');
+  const m = document.getElementById('modal-alimento');
+  if(!m) return;
+  m.querySelector('h2').textContent = 'Editar Alimento';
+  m.setAttribute('data-editing-id', item.id);
+  const inputs = m.querySelectorAll('input.form-input');
+  if(inputs[0]) inputs[0].value = item.nome;
+  if(inputs[1] && inputs[1].type === 'number') inputs[1].value = Number(item.qty) || 0;
+  const selects = m.querySelectorAll('select.form-select');
+  if(selects[0]) selects[0].value = item.cat || 'Outros';
+  if(selects[1]) selects[1].value = item.un || 'kg';
+  const dataInput = document.getElementById('alim-mov-data');
+  if(dataInput) dataInput.value = converterDataBrParaInput(item.val || new Date().toISOString().split('T')[0]);
+  const validadeInput = document.getElementById('alim-mov-validade');
+  if(validadeInput) validadeInput.value = converterDataBrParaInput(item.val || '');
+  const obsInput = document.getElementById('alim-mov-obs');
+  if(obsInput) obsInput.value = '';
+}
+
+function openEditDoacao(id){
+  const registro = DOACOES_DATA.find(x => Number(x.id) === Number(id));
+  if(!registro){ showToast('Doação não encontrada.'); return; }
+  openModal('modal-doacao');
+  const m = document.getElementById('modal-doacao');
+  if(!m) return;
+  m.querySelector('h2').textContent = 'Editar Doação';
+  m.setAttribute('data-editing-id', registro.id);
+  const selDoador = document.getElementById('sel-doador');
+  if(selDoador){
+    if(!Array.from(selDoador.options).some(opt => opt.value === registro.doador)){
+      selDoador.insertAdjacentHTML('afterbegin', `<option value="${registro.doador}">${registro.doador}</option>`);
+    }
+    selDoador.value = registro.doador;
+  }
+  const selAlim = document.getElementById('sel-alimento-doacao');
+  if(selAlim){
+    if(!Array.from(selAlim.options).some(opt => opt.value === registro.itens)){
+      selAlim.insertAdjacentHTML('afterbegin', `<option value="${registro.itens}">${registro.itens}</option>`);
+    }
+    selAlim.value = registro.itens;
+  }
+  const dataInput = document.getElementById('doacao-data');
+  if(dataInput) dataInput.value = converterDataBrParaInput(registro.data);
+  const qtyInput = document.getElementById('doacao-qty');
+  const unidadeSelect = document.getElementById('sel-unidade-doacao');
+  const parsed = parseQuantidadeUnidade(registro.qty);
+  if(qtyInput) qtyInput.value = parsed.qty;
+  if(unidadeSelect) unidadeSelect.value = parsed.unidade;
+  const validadeInput = document.getElementById('doacao-validade');
+  if(validadeInput) validadeInput.value = converterDataBrParaInput(registro._meta?.validade || '');
+}
+
+function openEditCompra(id){
+  const registro = COMPRAS_DATA.find(x => Number(x.id) === Number(id));
+  if(!registro){ showToast('Compra não encontrada.'); return; }
+  openModal('modal-compra');
+  const m = document.getElementById('modal-compra');
+  if(!m) return;
+  m.querySelector('h2').textContent = 'Editar Compra';
+  m.setAttribute('data-editing-id', registro.id);
+  const selForn = document.getElementById('sel-fornecedor-compra');
+  if(selForn){
+    if(!Array.from(selForn.options).some(opt => opt.value === registro.forn)){
+      selForn.insertAdjacentHTML('afterbegin', `<option value="${registro.forn}">${registro.forn}</option>`);
+    }
+    selForn.value = registro.forn;
+  }
+  const selProd = document.getElementById('sel-produto-compra');
+  if(selProd){
+    if(!Array.from(selProd.options).some(opt => opt.value === registro.itens)){
+      selProd.insertAdjacentHTML('afterbegin', `<option value="${registro.itens}">${registro.itens}</option>`);
+    }
+    selProd.value = registro.itens;
+  }
+  const dataInput = document.getElementById('compra-data');
+  if(dataInput) dataInput.value = converterDataBrParaInput(registro.data);
+  const qtyInput = document.getElementById('compra-qty');
+  if(qtyInput) qtyInput.value = Number(registro._meta?.qty || 0);
+  const valUnit = document.getElementById('compra-val-unit');
+  if(valUnit) valUnit.value = Number(registro._meta?.valUnit || parseValorReal(registro.val)).toFixed(2);
+  const validadeInput = document.getElementById('compra-validade');
+  if(validadeInput) validadeInput.value = converterDataBrParaInput(registro._meta?.validade || '');
+}
+
+function openEditRefeicao(id){
+  const registro = REFEICOES_DATA.find(x => Number(x.id) === Number(id));
+  if(!registro){ showToast('Registro de refeição não encontrado.'); return; }
+  openModal('modal-refeicao');
+  const m = document.getElementById('modal-refeicao');
+  if(!m) return;
+  m.querySelector('h2').textContent = 'Editar Refeição';
+  m.setAttribute('data-editing-id', registro.id);
+  const dataInput = m.querySelector('input[type=date]');
+  if(dataInput) dataInput.value = converterDataBrParaInput(registro.data);
+  const prodInput = document.getElementById('inp-produzida');
+  const servInput = document.getElementById('inp-servida');
+  if(prodInput) prodInput.value = Number(registro.prod) || 0;
+  if(servInput) servInput.value = Number(registro.serv) || 0;
+  const warn = document.getElementById('refeicao-warn');
+  if(warn) warn.style.display = Number(registro.serv) > Number(registro.prod) ? 'flex' : 'none';
 }
 
 function applyAlimentoMovimentacao(){
@@ -2240,7 +3097,7 @@ function applyAlimentoMovimentacao(){
   atualizarStatusEstoque(item);
   const movId = MOVIMENTACOES_DATA.length ? Math.max(...MOVIMENTACOES_DATA.map(m=>m.id)) + 1 : 1;
   MOVIMENTACOES_DATA.unshift({ id: movId, tipo, item: item.nome, quantidade: qty, unidade: item.un || 'kg', data, obs });
-  saveData(); renderTables(); showToast(tipo === 'entrada' ? 'Entrada registrada.' : 'Saída registrada.');
+  saveData(); refreshAppViews(); showToast(tipo === 'entrada' ? 'Entrada registrada.' : 'Saída registrada.');
 }
 
 function deleteItem(id){
@@ -2255,115 +3112,137 @@ function deleteItem(id){
         MOVIMENTACOES_DATA.splice(i,1);
       }
     }
-  saveData(); renderTables(); showToast('Item excluído do estoque.');
+  saveData(); refreshAppViews(); showToast('Item excluído do estoque.');
 }
 
 function saveDoacao(){
+  const m = document.getElementById('modal-doacao');
   const doadorSel = document.getElementById('sel-doador');
   let doador = doadorSel?.value || 'Outro';
   if(doador === '__novo__'){
     doador = (document.getElementById('inp-novo-doador')?.value || '').trim() || 'Novo doador';
   }
-  const data = document.getElementById('doacao-data')?.value || '';
-  let alimento = document.getElementById('sel-alimento-doacao')?.value || 'Alimento';
+  const dataInput = document.getElementById('doacao-data')?.value || '';
+  const data = converterDataInputParaBrasil(dataInput);
+  const alimento = document.getElementById('sel-alimento-doacao')?.value || 'Alimento';
   const qty = parseFloat(document.getElementById('doacao-qty')?.value) || 0;
   const unidade = document.getElementById('sel-unidade-doacao')?.value || 'kg';
   const validadeRaw = document.getElementById('doacao-validade')?.value || '';
 
+  if(qty <= 0){ showToast('Informe a quantidade da doação.'); return; }
   if(!validadeRaw){ showToast('Informe a data de validade para a doação.'); return; }
-  const validadeFmt = formatarDataBrasil(validadeRaw);
+  const validadeFmt = converterDataInputParaBrasil(validadeRaw);
 
-  // determine affected estoque item before inserting DOACOES_DATA so we can record metadata
-  let affected = null;
+  const editingId = m?.getAttribute('data-editing-id');
+  const existingDoacao = editingId ? DOACOES_DATA.find(x => String(x.id) === String(editingId)) : null;
+  if(existingDoacao){
+    reverterEntradaRegistro(existingDoacao, 'doacao');
+  }
+
   let matchedName = alimento;
   try{
     const match = encontrarItemEstoquePorNome(alimento);
     if(match) matchedName = match.nome;
   }catch(e){ console.warn('Erro ao procurar item no estoque para doação', e); }
 
-  const id = DOACOES_DATA.length
-    ? Math.max(...DOACOES_DATA.map(x => x.id)) + 1
-    : 1;
-
-  // capture previous qty if item exists
   const existingItem = ESTOQUE_DATA.find(it => normalizarTexto(it.nome) === normalizarTexto(matchedName));
   const prevQty = existingItem ? Number(existingItem.qty) || 0 : 0;
+  const movId = MOVIMENTACOES_DATA.length ? Math.max(...MOVIMENTACOES_DATA.map(m=>m.id)) + 1 : 1;
 
-  // push doação com metadados para permitir reversão futura
-  DOACOES_DATA.push({
-    id: id,
-    doador: doador,
-    data: data,
+  const registro = {
+    id: existingDoacao ? existingDoacao.id : (DOACOES_DATA.length ? Math.max(...DOACOES_DATA.map(x => x.id)) + 1 : 1),
+    doador,
+    data,
     itens: matchedName,
     qty: qty + ' ' + unidade,
-    _meta: { affectedNome: matchedName, prevQty: prevQty }
-  });
+    _meta: {
+      affectedNome: matchedName,
+      prevQty,
+      movId,
+      qty,
+      unidade,
+      validade: validadeFmt
+    }
+  };
+
+  if(existingDoacao){
+    Object.assign(existingDoacao, registro);
+  } else {
+    DOACOES_DATA.push(registro);
+  }
   sortDoacoes();
 
-  // Add to estoque and get the affected item (existing or new), using provided validity
-  affected = adicionarAoEstoque({
-    nome: matchedName,
-    quantidade: qty,
-    unidade: unidade,
-    categoria: inferirCategoria(matchedName),
-    validade: validadeFmt
-  });
+  const affected = adicionarAoEstoque({ nome: matchedName, quantidade: qty, unidade, categoria: inferirCategoria(matchedName), validade: validadeFmt });
   if(affected){
     affected.origem = 'doacao';
-    // registrar movimentação de entrada correspondente
-    const movId = MOVIMENTACOES_DATA.length ? Math.max(...MOVIMENTACOES_DATA.map(m=>m.id)) + 1 : 1;
-    MOVIMENTACOES_DATA.unshift({ id: movId, tipo: 'entrada', item: affected.nome, quantidade: qty, unidade: unidade, data: data || formatarDataBrasil(new Date().toISOString().split('T')[0]), obs: `Doação - validade ${validadeFmt}` });
+    MOVIMENTACOES_DATA.unshift({ id: movId, tipo: 'entrada', item: affected.nome, quantidade: qty, unidade, data: data || formatarDataBrasil(new Date().toISOString().split('T')[0]), obs: `Doação - validade ${validadeFmt}` });
   }
-  sortEstoque();
 
+  sortEstoque();
   saveData();
-  renderTables();
+  refreshAppViews();
   closeModal('modal-doacao');
-  showToast('Doação registrada e adicionada ao estoque.');
+  showToast(existingDoacao ? 'Doação atualizada e estoque sincronizado.' : 'Doação registrada e adicionada ao estoque.');
 }
 
 function saveCompra(){
+  const m = document.getElementById('modal-compra');
   const fornSel = document.getElementById('sel-fornecedor-compra');
   let forn = fornSel?.value || 'Fornecedor';
   if(forn === '__novo__'){
     forn = (document.getElementById('inp-novo-fornecedor')?.value || '').trim() || 'Novo fornecedor';
   }
-  const data = document.getElementById('compra-data')?.value || '';
+  const dataInput = document.getElementById('compra-data')?.value || '';
+  const data = converterDataInputParaBrasil(dataInput);
   const prod = document.getElementById('sel-produto-compra')?.value || 'Produto';
   const qty = parseFloat(document.getElementById('compra-qty')?.value) || 0;
   const valUnitario = parseFloat(document.getElementById('compra-val-unit')?.value) || 0;
   const validadeRaw = document.getElementById('compra-validade')?.value || '';
 
+  if(qty <= 0){ showToast('Informe a quantidade da compra.'); return; }
   if(!validadeRaw){ showToast('Informe a data de validade ao registrar a compra.'); return; }
-  const validadeFmt = formatarDataBrasil(validadeRaw);
+  const validadeFmt = converterDataInputParaBrasil(validadeRaw);
 
   const valorTotal = qty * valUnitario;
+  const editingId = m?.getAttribute('data-editing-id');
+  const existingCompra = editingId ? COMPRAS_DATA.find(x => String(x.id) === String(editingId)) : null;
+  if(existingCompra){
+    reverterEntradaRegistro(existingCompra, 'compra');
+  }
 
-  const id = COMPRAS_DATA.length
-    ? Math.max(...COMPRAS_DATA.map(x => x.id)) + 1
-    : 1;
-
-  COMPRAS_DATA.push({
-    id: id,
-    forn: forn,
-    data: data,
+  const movId = MOVIMENTACOES_DATA.length ? Math.max(...MOVIMENTACOES_DATA.map(x=>x.id)) + 1 : 1;
+  const registro = {
+    id: existingCompra ? existingCompra.id : (COMPRAS_DATA.length ? Math.max(...COMPRAS_DATA.map(x => x.id)) + 1 : 1),
+    forn,
+    data,
     itens: prod,
-    val: 'R$ ' + valorTotal.toFixed(2)
-  });
+    val: 'R$ ' + valorTotal.toFixed(2),
+    _meta: {
+      affectedNome: prod,
+      qty,
+      unidade: 'kg',
+      movId,
+      validade: validadeFmt,
+      valUnit: valUnitario
+    }
+  };
 
-  adicionarAoEstoque({
-    nome: prod,
-    quantidade: qty,
-    unidade: 'kg',
-    categoria: inferirCategoria(prod)
-    , validade: validadeFmt
-  });
+  if(existingCompra){
+    Object.assign(existingCompra, registro);
+  } else {
+    COMPRAS_DATA.push(registro);
+  }
+
+  const affected = adicionarAoEstoque({ nome: prod, quantidade: qty, unidade: 'kg', categoria: inferirCategoria(prod), validade: validadeFmt });
+  if(affected){
+    MOVIMENTACOES_DATA.unshift({ id: movId, tipo: 'entrada', item: affected.nome, quantidade: qty, unidade: 'kg', data: data || formatarDataBrasil(new Date().toISOString().split('T')[0]), obs: `Compra - validade ${validadeFmt}` });
+  }
   sortEstoque();
 
   saveData();
-  renderTables();
+  refreshAppViews();
   closeModal('modal-compra');
-  showToast('Compra registrada e estoque atualizado.');
+  showToast(existingCompra ? 'Compra atualizada e estoque sincronizado.' : 'Compra registrada e estoque atualizado.');
 }
 
 function saveUsuario(){
@@ -2374,6 +3253,8 @@ function baixarEstoquePorRefeicao(qtdRefeicoes){
   const ficha = PREMISSAS_FINANCEIRAS.consumoPorPrato || {};
   const hoje = getSystemDate();
   const dataIso = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
+  const movIds = [];
+  const consumo = [];
 
   Object.keys(ficha).forEach(nomeIngrediente => {
     const consumoUnit = Number(ficha[nomeIngrediente]) || 0;
@@ -2381,15 +3262,12 @@ function baixarEstoquePorRefeicao(qtdRefeicoes){
     const quantidadeConsumida = Number((qtdRefeicoes * consumoUnit).toFixed(3));
 
     // localizar item no estoque pelo nome
-    const item = ESTOQUE_DATA.find(i => i.nome === nomeIngrediente);
+    const item = ESTOQUE_DATA.find(i => normalizarTexto(i.nome) === normalizarTexto(nomeIngrediente));
     if(!item) return;
 
     item.qty = Math.max(0, Number(((parseFloat(item.qty) || 0) - quantidadeConsumida).toFixed(3)));
-
-    // atualizar status do item considerando validade relativa ao dia de produção
     atualizarStatusEstoque(item);
 
-    // registrar movimentação de saída
     const movId = MOVIMENTACOES_DATA.length ? Math.max(...MOVIMENTACOES_DATA.map(m=>m.id)) + 1 : 1;
     MOVIMENTACOES_DATA.unshift({
       id: movId,
@@ -2400,37 +3278,58 @@ function baixarEstoquePorRefeicao(qtdRefeicoes){
       data: dataIso,
       obs: `Consumo para produção de ${qtdRefeicoes} refeição(ões)`
     });
+    movIds.push(movId);
+    consumo.push({ item: item.nome, quantidade: quantidadeConsumida, unidade: item.un || 'kg' });
   });
 
-  // manter ordenação e persistir mudança
   sortEstoque();
   saveData();
+  return { movIds, consumo };
 }
 
 function saveRefeicao(){
-  const p=parseInt(document.getElementById('inp-produzida').value)||0;
-  const s=parseInt(document.getElementById('inp-servida').value)||0;
-  const w=document.getElementById('refeicao-warn');
-  if(s>p){w.style.display='flex';return;}
-  w.style.display='none';
-  const id = REFEICOES_DATA.length?Math.max(...REFEICOES_DATA.map(x=>x.id))+1:1;
+  const p = parseInt(document.getElementById('inp-produzida').value) || 0;
+  const s = parseInt(document.getElementById('inp-servida').value) || 0;
+  const w = document.getElementById('refeicao-warn');
+  if(s > p){ if(w) w.style.display = 'flex'; return; }
+  if(w) w.style.display = 'none';
+
+  const m = document.getElementById('modal-refeicao');
   const dataInput = document.querySelector('#modal-refeicao input[type=date]')?.value;
   const hoje = new Date();
   const dataPadrao = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
   const data = formatarDataBrasil(dataInput || dataPadrao);
-  REFEICOES_DATA.unshift({id,data,prod:p,serv:s});
+
+  const editingId = m?.getAttribute('data-editing-id');
+  let registro = null;
+  if(editingId){
+    registro = REFEICOES_DATA.find(x => String(x.id) === String(editingId));
+    if(!registro){ showToast('Registro de refeição não encontrado.'); return; }
+    reverterRefeicaoRegistro(registro);
+    registro.data = data;
+    registro.prod = p;
+    registro.serv = s;
+  } else {
+    const id = REFEICOES_DATA.length ? Math.max(...REFEICOES_DATA.map(x => x.id)) + 1 : 1;
+    registro = { id, data, prod: p, serv: s };
+    REFEICOES_DATA.unshift(registro);
+  }
+
   normalizarRefeicoes();
-  baixarEstoquePorRefeicao(p);
-  // calcular custo de insumos por refeição e custo total do lote
+  const meta = baixarEstoquePorRefeicao(p);
+  registro._meta = { movIds: meta.movIds, consumo: meta.consumo };
+
   const custoInfo = calcularCustoInsumosPorRefeicao();
   const custoPorRefeicao = custoInfo.total;
   const custoLote = Number((custoPorRefeicao * p).toFixed(2));
 
-  // reavaliar status do estoque com base na nova data do sistema
   ESTOQUE_DATA.forEach(atualizarStatusEstoque);
 
-  saveData(); renderTables(); renderCharts(); closeModal('modal-refeicao');
-  // confirmar atualização da data do sistema para o usuário
+  saveData();
+  refreshAppViews();
+  closeModal('modal-refeicao');
+  if(m) m.removeAttribute('data-editing-id');
+
   try{
     const ultima = ordenarRefeicoesPorData(REFEICOES_DATA)[0];
     if(ultima && ultima.data) showToast(`Data do sistema atualizada para ${ultima.data}`);
@@ -2507,6 +3406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       localStorage.getItem('PAGINA_ATUAL') || 'dashboard';
 
     renderTables();
+    gerarRelatorio();
     renderCharts();
     goPage(paginaSalva);
   }else{

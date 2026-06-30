@@ -91,6 +91,11 @@
       <div class="topbar-title" id="topbar-title">Dashboard</div>
     </div>
     <div class="topbar-right">
+      <div id="topbar-dashboard-filter" style="display:none;align-items:center;gap:8px">
+        <input id="dashboard-data-inicio" class="form-input" type="date" style="width:140px;padding:6px 10px;font-size:13px" title="Data inicial">
+        <input id="dashboard-data-fim" class="form-input" type="date" style="width:140px;padding:6px 10px;font-size:13px" title="Data final">
+        <button id="btn-aplicar-filtro-dashboard" class="btn blue" onclick="aplicarFiltroDashboard()">Aplicar filtro</button>
+      </div>
       <input id="topbar-search" class="form-input" placeholder="Pesquisar..." style="width:220px;padding:6px 10px;font-size:13px">
       <span class="badge-alert" id="topbar-alert">⚠ 3 alertas de estoque</span>
       <span style="font-size:12px;color:var(--gray-400)" id="topbar-date"></span>
@@ -313,9 +318,6 @@
       <div class="section-card">
         <div class="section-header">
           <div class="section-title">Lista de Alimentos</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn outline" onclick="openModal('modal-alimento')">+ Novo alimento</button>
-          </div>
         </div>
         <table>
           <thead><tr><th>ID</th><th>Alimento</th><th>Categoria</th><th>Qtd. Atual</th><th>Unidade</th><th>Validade</th><th>Status</th><th>Ações</th></tr></thead>
@@ -396,34 +398,27 @@
     <div class="page" id="page-relatorios">
       <div class="page-header">
         <div><h1>Relatórios</h1><p>Consultas e análises por período</p></div>
-        <button class="btn green" onclick="showToast('Relatório gerado com sucesso!')">⬇ Exportar PDF</button>
+        <button class="btn green" onclick="exportRelatorioPDF()">⬇ Exportar PDF</button>
       </div>
       <div class="section-card" style="margin-bottom:20px">
         <div class="section-header"><div class="section-title">Filtros de pesquisa</div></div>
         <div class="section-body">
           <div class="form-row cols3">
             <div><label class="form-label">Tipo de relatório</label>
-            <select class="form-select"><option>Estoque</option><option>Doações</option><option>Compras</option><option>Refeições</option><option>Geral</option></select></div>
-            <div><label class="form-label">Data início</label><input class="form-input" type="date" value="2026-05-01"></div>
-            <div><label class="form-label">Data fim</label><input class="form-input" type="date" value="2026-05-18"></div>
+            <select id="relatorios-tipo" class="form-select"><option>Estoque</option><option>Doações</option><option>Compras</option><option>Refeições</option><option>Geral</option></select></div>
+            <div><label class="form-label">Data início</label><input id="relatorios-data-inicio" class="form-input" type="date" value="2026-05-01"></div>
+            <div><label class="form-label">Data fim</label><input id="relatorios-data-fim" class="form-input" type="date" value="2026-05-18"></div>
           </div>
-          <button class="btn blue" onclick="showToast('Relatório gerado!')">Gerar relatório</button>
+          <button id="btn-gerar-relatorio" class="btn blue" onclick="gerarRelatorio()">Gerar relatório</button>
         </div>
       </div>
       <div class="section-card">
-        <div class="section-header"><div class="section-title">Relatório: Refeições — Mai/2026</div></div>
+        <div class="section-header"><div class="section-title" id="relatorios-titulo">Relatório: Refeições — Mai/2026</div></div>
+        <div class="section-body" id="relatorios-geral-resumo" style="display:none"></div>
+        <div class="section-body" id="relatorios-geral-metadata" style="display:none"></div>
         <table>
-          <thead><tr><th>Data</th><th>Produzidas</th><th>Servidas</th><th>Não servidas</th><th>% aproveit.</th></tr></thead>
-          <tbody>
-            <tr><td>10/05/2026</td><td>390</td><td>378</td><td>12</td><td><span class="badge ok">96,9%</span></td></tr>
-            <tr><td>11/05/2026</td><td>370</td><td>365</td><td>5</td><td><span class="badge ok">98,6%</span></td></tr>
-            <tr><td>12/05/2026</td><td>400</td><td>388</td><td>12</td><td><span class="badge ok">97%</span></td></tr>
-            <tr><td>13/05/2026</td><td>360</td><td>342</td><td>18</td><td><span class="badge warn">95%</span></td></tr>
-            <tr><td>14/05/2026</td><td>380</td><td>371</td><td>9</td><td><span class="badge ok">97,6%</span></td></tr>
-            <tr><td>15/05/2026</td><td>395</td><td>390</td><td>5</td><td><span class="badge ok">98,7%</span></td></tr>
-            <tr><td>16/05/2026</td><td>350</td><td>340</td><td>10</td><td><span class="badge ok">97,1%</span></td></tr>
-            <tr><td>17/05/2026</td><td>380</td><td>368</td><td>12</td><td><span class="badge ok">96,8%</span></td></tr>
-          </tbody>
+          <thead id="relatorios-thead"></thead>
+          <tbody id="relatorios-body"></tbody>
         </table>
       </div>
     </div>
@@ -442,10 +437,9 @@
       <div><label class="form-label">Nome do alimento</label><input class="form-input" placeholder="Ex: Arroz tipo 1"></div>
       <div><label class="form-label">Categoria</label><select class="form-select"><option>Grãos</option><option>Carnes</option><option>Laticínios</option><option>Óleos</option><option>Massas</option><option>Legumes</option><option>Temperos</option></select></div>
     </div>
-    <div class="form-row cols3">
+    <div class="form-row cols2">
       <div><label class="form-label">Unidade</label><select class="form-select"><option>kg</option><option>L</option><option>un</option><option>cx</option></select></div>
       <div><label class="form-label">Quantidade inicial</label><input class="form-input" type="number" placeholder="0" value="50"></div>
-      <div><label class="form-label">Validade</label><input class="form-input" type="date"></div>
     </div>
     <hr>
     <div style="margin-top:8px;font-weight:600">Movimentação rápida (aplica quando estiver editando)</div>
@@ -574,6 +568,8 @@
 <div id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <script src="js/seed_client.js"></script>
 <script src="js/app.js"></script>
 </body>

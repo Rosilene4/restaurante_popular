@@ -1065,14 +1065,9 @@ function calcularGastoRealCompras(periodo = getDashboardPeriodo()){
 
 function calcularComposicaoFontes(periodo = getDashboardPeriodo()){
   const doado = filtrarPorPeriodo(DOACOES_DATA, 'data', periodo).reduce((s,d) => s + parseQty(d.qty), 0);
-  const comprado = MOVIMENTACOES_DATA.reduce((s,m) => {
-    const ts = converterDataParaTimestamp(m.data);
-    const { inicio, fim } = periodo;
-    if(ts === null || ts < inicio || ts > fim) return s;
-    if(m.tipo !== 'entrada') return s;
-    const obs = normalizarTexto(m.obs || '');
-    if(obs.includes('compra')) return s + (Number(m.quantidade) || 0);
-    return s;
+  const comprado = filtrarPorPeriodo(COMPRAS_DATA, 'data', periodo).reduce((s,c) => {
+    const qt = Number(c._meta?.qty || 0);
+    return s + (Number.isFinite(qt) ? qt : 0);
   }, 0);
   return { doado: Number(doado.toFixed(1)), comprado: Number(comprado.toFixed(1)) };
 }
@@ -1531,6 +1526,9 @@ function renderTables(){
 function refreshAppViews(){
   renderTables();
   renderCharts();
+  renderDashboardSummary();
+  renderRecomendacoesCompras();
+  renderConcentracaoFornecedores();
   gerarRelatorio();
 }
 
@@ -2857,31 +2855,93 @@ function simularDadosRefeicoes(){
     if(semana !== 0 && semana !== 6) diasUteis.push(data);
   }
 
-  const diasConsiderados = diasUteis.slice(0, 22);
-  const totalServidasAlvo = 8000;
-  const base = Math.floor(totalServidasAlvo / diasConsiderados.length);
-  let restante = totalServidasAlvo - (base * diasConsiderados.length);
+  if(!diasUteis.length){
+    showToast('Não foi possível gerar a simulação: mês inválido.');
+    return;
+  }
 
-  const variacoes = [-8,-4,-2,0,3,5,7,4,1,-1,-3,2,6,-2,0,4,-5,3,2,-1,5,1];
-  const simuladas = diasConsiderados.map((data, idx) => {
-    const extra = restante > 0 ? 1 : 0;
-    if(restante > 0) restante -= 1;
-    const serv = Math.max(320, base + extra + (variacoes[idx] || 0));
-    const prod = serv + 10 + (idx % 6);
-    return {
-      id: idx + 1,
-      data: formatarDataBrasil(data.toISOString().split('T')[0]),
-      prod,
-      serv
-    };
+  const pratosPorDia = PREMISSAS_FINANCEIRAS.pratosPorDia || 100;
+  const variacoes = [0.92,0.94,0.95,0.96,0.97,0.98,0.99,1.0,1.01,1.02,1.03,1.04];
+  let nextId = REFEICOES_DATA.length ? Math.max(...REFEICOES_DATA.map(r => r.id)) + 1 : 1;
+
+  // Limpar registros antigos de refeição para representar o mês simulado
+  REFEICOES_DATA.splice(0, REFEICOES_DATA.length);
+
+  diasUteis.forEach((dataObj, idx) => {
+    const dataBr = formatarDataBrasil(dataObj.toISOString().split('T')[0]);
+    const variacao = variacoes[idx % variacoes.length] || 1.0;
+    const planejado = Math.max(0, Math.round(pratosPorDia * variacao));
+
+    const maxPorEstoque = calcularMaximoProducaoPorEstoque(planejado);
+    const produzidas = Math.max(0, Math.min(planejado, Math.round(maxPorEstoque)));
+    const servidas = produzidas > 0 ? Math.min(produzidas, Math.round(produzidas * (0.92 + Math.random() * 0.06))) : 0;
+
+    const consumoMeta = consumirEstoqueParaProducao(produzidas, dataBr);
+    REFEICOES_DATA.unshift({
+      id: nextId++,
+      data: dataBr,
+      prod: produzidas,
+      serv: servidas,
+      _meta: { movIds: consumoMeta.movIds, consumo: consumoMeta.consumo }
+    });
   });
 
-  REFEICOES_DATA.splice(0, REFEICOES_DATA.length, ...simuladas);
   normalizarRefeicoes();
   saveData();
-  renderTables();
-  renderCharts();
-  showToast('Dados simulados de refeições carregados (~8.000/mês).');
+  refreshAppViews();
+  showToast('Simulação do mês concluída com consumo real de estoque.');
+}
+
+function calcularMaximoProducaoPorEstoque(planejado){
+  const consumoPorPrato = PREMISSAS_FINANCEIRAS.consumoPorPrato || {};
+  let maximo = planejado;
+
+  Object.keys(consumoPorPrato).forEach(nome => {
+    const consumoUnit = Number(consumoPorPrato[nome]) || 0;
+    if(consumoUnit <= 0) return;
+    const item = ESTOQUE_DATA.find(i => normalizarTexto(i.nome) === normalizarTexto(nome));
+    const estoque = Number(item?.qty || 0);
+    const maxParaIngrediente = estoque / consumoUnit;
+    if(maxParaIngrediente < maximo) maximo = maxParaIngrediente;
+  });
+
+  return Number.isFinite(maximo) ? Math.max(0, maximo) : planejado;
+}
+
+function consumirEstoqueParaProducao(produzidas, dataBr){
+  const consumoPorPrato = PREMISSAS_FINANCEIRAS.consumoPorPrato || {};
+  const movIds = [];
+  const consumo = [];
+
+  Object.keys(consumoPorPrato).forEach(nome => {
+    const consumoUnit = Number(consumoPorPrato[nome]) || 0;
+    if(consumoUnit <= 0) return;
+    const item = ESTOQUE_DATA.find(i => normalizarTexto(i.nome) === normalizarTexto(nome));
+    if(!item) return;
+
+    const quantidadeConsumida = Number((produzidas * consumoUnit).toFixed(3));
+    if(quantidadeConsumida <= 0) return;
+
+    item.qty = Math.max(0, Number(((Number(item.qty) || 0) - quantidadeConsumida).toFixed(3)));
+    atualizarStatusEstoque(item);
+
+    const movId = MOVIMENTACOES_DATA.length ? Math.max(...MOVIMENTACOES_DATA.map(m => m.id)) + 1 : 1;
+    MOVIMENTACOES_DATA.unshift({
+      id: movId,
+      tipo: 'saida',
+      item: item.nome,
+      quantidade: quantidadeConsumida,
+      unidade: item.un || 'kg',
+      data: dataBr,
+      obs: `Consumo para produção de ${produzidas} refeição(ões)`
+    });
+
+    movIds.push(movId);
+    consumo.push({ item: item.nome, quantidade: quantidadeConsumida, unidade: item.un || 'kg' });
+  });
+
+  sortEstoque();
+  return { movIds, consumo };
 }
 
 function renderMovimentacoes(){
@@ -3071,8 +3131,25 @@ function openEditRefeicao(id){
 
 function applyAlimentoMovimentacao(){
   const m = document.getElementById('modal-alimento');
-  const editingId = m.getAttribute('data-editing-id');
-  if(!editingId){ showToast('Edite um item antes de aplicar movimentação.'); return; }
+  if(!m){ showToast('Modal de alimento não encontrado.'); return; }
+
+  const nome = (m.querySelector('input.form-input')?.value || '').trim();
+  const cat = m.querySelector('select.form-select')?.value || 'Outros';
+  const unit = m.querySelector('select.form-select:nth-of-type(2)')?.value || 'kg';
+  let editingId = m.getAttribute('data-editing-id');
+  let item = editingId ? ESTOQUE_DATA.find(x => String(x.id) === String(editingId)) : null;
+
+  if(!item){
+    if(!nome){ showToast('Informe o nome do alimento antes de aplicar movimentação.'); return; }
+    item = encontrarItemEstoquePorNome(nome);
+    if(!item){
+      const id = ESTOQUE_DATA.length ? Math.max(...ESTOQUE_DATA.map(x => x.id)) + 1 : 1;
+      item = { id, nome, cat, qty: 0, un: unit, val: '', status: 'ok' };
+      ESTOQUE_DATA.push(item);
+      m.setAttribute('data-editing-id', id);
+      editingId = String(id);
+    }
+  }
 
   const tipo = document.getElementById('alim-mov-tipo')?.value || 'entrada';
   const qty = parseFloat(document.getElementById('alim-mov-qty')?.value) || 0;
@@ -3080,8 +3157,6 @@ function applyAlimentoMovimentacao(){
   const validadeRaw = document.getElementById('alim-mov-validade')?.value || '';
   const obs = document.getElementById('alim-mov-obs')?.value || '';
 
-  const item = ESTOQUE_DATA.find(x => String(x.id) === String(editingId));
-  if(!item){ showToast('Item para movimentação não encontrado.'); return; }
   if(qty <= 0){ showToast('Informe uma quantidade maior que zero para movimentação.'); return; }
 
   if(tipo === 'entrada'){
@@ -3089,15 +3164,23 @@ function applyAlimentoMovimentacao(){
     const validadeFmt = formatarDataBrasil(validadeRaw);
     item.qty = (Number(item.qty) || 0) + qty;
     item.val = validadeFmt;
-  }else{
+  } else {
     if((Number(item.qty) || 0) < qty){ showToast('Saldo insuficiente para esta saída.'); return; }
     item.qty = Math.max(0, (Number(item.qty) || 0) - qty);
   }
 
+  item.un = unit;
+  item.cat = cat;
   atualizarStatusEstoque(item);
+
   const movId = MOVIMENTACOES_DATA.length ? Math.max(...MOVIMENTACOES_DATA.map(m=>m.id)) + 1 : 1;
   MOVIMENTACOES_DATA.unshift({ id: movId, tipo, item: item.nome, quantidade: qty, unidade: item.un || 'kg', data, obs });
-  saveData(); refreshAppViews(); showToast(tipo === 'entrada' ? 'Entrada registrada.' : 'Saída registrada.');
+
+  sortEstoque();
+  saveData();
+  refreshAppViews();
+  closeModal('modal-alimento');
+  showToast(tipo === 'entrada' ? 'Entrada registrada no estoque.' : 'Saída registrada no estoque.');
 }
 
 function deleteItem(id){
